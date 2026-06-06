@@ -706,6 +706,28 @@ function wdClass(field, val) {
   return 'wd-gray';
 }
 function internalLoad(e) { return (e.rpe || 0) * (e.duration || 0); }
+  function readinessScore(entries) {
+  if (!entries.length) return null;
+  const last = entries[0];
+  const prev = entries[1] || null;
+
+  const fatigue = last.fatigue || 3;
+  const motivation = last.motivation || 3;
+  const sleep = last.sleepQuality || 3;
+  const painConcern = last.painConcern || 0;
+
+  const base = (fatigue + motivation + sleep) / 3;
+  const dolorPen = painConcern * 0.5;
+
+  let rpePen = 0;
+  if (prev && prev.rpe >= 8) rpePen = 1;
+
+  let raw = base - dolorPen - rpePen;
+  if (raw < 1) raw = 1;
+  if (raw > 5) raw = 5;
+
+  return Math.round((raw / 5) * 10);
+}
 function avgRpe(entries) {
   if (!entries.length) return null;
   return (entries.reduce((s,e)=>s+(e.rpe||0),0)/entries.length).toFixed(1);
@@ -868,6 +890,7 @@ function playerCard(p, rosterMode=false) {
   const last = entries[0];
   const avg = avgRpe(entries);
   const load = last ? internalLoad(last) : 0;
+  const score = readinessScore(entries);
   const alertReasons = isAlert(last);
   const alertClass = alertReasons ? (alertReasons.some(r=>r.includes('RPE')||r.includes('dolor')) ? 'alert-red' : 'alert-orange') : '';
   const avClass = p.team === '17M' ? 'av-17m' : p.team === '15M' ? 'av-15m' : 'av-14m';
@@ -893,7 +916,7 @@ function playerCard(p, rosterMode=false) {
         <div class="pstat"><div class="pstat-val">${avg||'—'}</div><div class="pstat-lbl">Prom.</div></div>
         <div class="pstat"><div class="pstat-val">${last?internalLoad(last):'—'}</div><div class="pstat-lbl">Carga</div></div>
         <div class="pstat"><div class="pstat-val">${entries.length}</div><div class="pstat-lbl">Entradas</div></div>
-      </div>
+        <div class="pstat"><div class="pstat-val">${score ?? '—'}</div><div class="pstat-lbl">Listo</div></div>
       ${last ? `<div class="wellness-dots">
         <div class="wd ${wdClass('mood',last.mood)}" title="Ánimo"></div>
         <div class="wd ${wdClass('sleepQuality',last.sleepQuality)}" title="Sueño"></div>
