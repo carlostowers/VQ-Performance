@@ -528,6 +528,24 @@ input[type="file"] { display: none; }
 
 <script>
 const sb = window.supabase.createClient(
+  const STAFF_PASSWORD = 'Vaqueros2026';
+
+function ensureStaffAccess() {
+  const params = new URLSearchParams(window.location.search);
+  // Si viene con ?player=... es modo jugador: no pedimos contraseña
+  if (params.get('player')) return true;
+
+  const stored = localStorage.getItem('vaq_staff_pass');
+  if (stored === STAFF_PASSWORD) return true;
+
+  const input = prompt('Contraseña del staff:');
+  if (input === STAFF_PASSWORD) {
+    localStorage.setItem('vaq_staff_pass', STAFF_PASSWORD);
+    return true;
+  }
+  alert('Contraseña incorrecta.');
+  return false;
+}
   'https://djzrrxnbeulhcnmhikcr.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqenJyeG5iZXVsaGNubWhpa2NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDE1NzEsImV4cCI6MjA5NjE3NzU3MX0.4hT-YzRhn_AzeXDrRBdLC3zon6ARvudR53oI65akltk'
 );
