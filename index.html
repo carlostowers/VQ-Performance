@@ -1229,11 +1229,26 @@ async function submitCheckin(e, pid) {
 
   if (!date) { toast('Falta la fecha', true); btn.disabled=false; btn.textContent='✓ Guardar check-in'; return; }
   if (!rpe) { toast('Selecciona el RPE', true); btn.disabled=false; btn.textContent='✓ Guardar check-in'; return; }
+  const playerNoteInput = document.getElementById('player-note');
+const playerNote = playerNoteInput ? playerNoteInput.value.trim() : null;
 
-  const { error } = await sb.from('entries').insert({
-    player_id: pid, date, duration, rpe, mood, sleep_quality, soreness, stress,
-    fatigue, motivation, pain_concern, pain_zones, notes
-  });
+const { error } = await sb.from('entries').insert({
+  player_id: playerId,
+  date,
+  session_label: sessionLabel,
+  duration,
+  rpe,
+  mood,
+  sleep_quality: sleepQuality,
+  soreness,
+  stress,
+  fatigue,
+  motivation,
+  pain_concern: painConcern,
+  pain_zones: painZones,
+  notes,
+  player_note: playerNote || null
+});
 
   if (error) {
     console.error(error);
