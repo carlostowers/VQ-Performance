@@ -4,6 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vaqueros — Carga & Bienestar</title>
+
+<script>
+// Ocultar nav y páginas del staff inmediatamente si es modo jugador
+(function() {
+  if (new URLSearchParams(window.location.search).get('player')) {
+    document.addEventListener('DOMContentLoaded', function() {
+      var nav = document.getElementById('main-nav');
+      var backBtn = document.getElementById('back-btn');
+      if (nav) nav.style.display = 'none';
+      if (backBtn) backBtn.style.display = 'none';
+      ['page-dashboard','page-roster','page-records','page-import','page-gameday'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    });
+    // CSS inmediato para evitar flash
+    var style = document.createElement('style');
+    style.textContent = '#main-nav { display: none !important; } #page-dashboard, #page-roster, #page-records, #page-import, #page-gameday { display: none !important; } footer { display: none !important; }';
+    document.head && document.head.appendChild(style);
+  }
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -387,18 +409,30 @@ function ensureStaffAccess() {
 }
 
 let TEAM_SETTINGS = { '14M':{tournamentMode:false}, '15M':{tournamentMode:false}, '17M':{tournamentMode:false} };
-function loadTeamSettings() {
-  const raw = localStorage.getItem('vaq_team_settings');
-  if (!raw) return;
+async function loadTeamSettings() {
   try {
-    const p = JSON.parse(raw);
-    ['14M','15M','17M'].forEach(t => { if (p[t] && typeof p[t].tournamentMode==='boolean') TEAM_SETTINGS[t].tournamentMode = p[t].tournamentMode; });
-  } catch(e) {}
+    const { data } = await sb.from('team_settings').select('*');
+    if (data) {
+      data.forEach(row => {
+        if (TEAM_SETTINGS[row.team] !== undefined) {
+          TEAM_SETTINGS[row.team].tournamentMode = row.tournament_mode;
+        }
+      });
+    }
+  } catch(e) { console.error('Error cargando team_settings', e); }
 }
-function saveTeamSettings() { localStorage.setItem('vaq_team_settings', JSON.stringify(TEAM_SETTINGS)); }
-function toggleTournament(team, on) {
+async function saveTeamSettings() {
+  try {
+    await Promise.all(
+      ['14M','15M','17M'].map(t =>
+        sb.from('team_settings').upsert({ team: t, tournament_mode: TEAM_SETTINGS[t].tournamentMode })
+      )
+    );
+  } catch(e) { console.error('Error guardando team_settings', e); }
+}
+async function toggleTournament(team, on) {
   TEAM_SETTINGS[team].tournamentMode = !!on;
-  saveTeamSettings();
+  await saveTeamSettings();
   updateGameDayNav();
   renderDashboard();
 }
@@ -444,7 +478,7 @@ function normalizeEntry(e) {
 async function init() {
   if (!ensureStaffAccess()) return;
   showLoading(true);
-  loadTeamSettings();
+  await loadTeamSettings();
   try {
     await seedPlayersIfNeeded();
     await loadAll();
