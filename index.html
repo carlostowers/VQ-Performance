@@ -591,6 +591,8 @@ let playerLoadChartInstance = null;
 let teamLoadChartInstance = null;
 
 async function init() {
+  if (!ensureStaffAccess()) return;
+
   showLoading(true);
   try {
     await seedPlayersIfNeeded();
@@ -598,8 +600,9 @@ async function init() {
   } catch(e) {
     toast('Error conectando a Supabase', true);
     console.error(e);
+    showLoading(false);
   }
-  showLoading(false);
+
   if (!checkURLPlayer()) {
     renderDashboard();
     renderTeamLoadChart();
