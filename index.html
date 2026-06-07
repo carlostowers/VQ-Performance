@@ -962,7 +962,7 @@ function playerNoteField(label, placeholder) {
 
 // ---- FORM INIT ----
 function initCheckinForm(pid, isTournament) {
-  setupBtnGroup('rpe-group','btn-rpe','f-rpe');
+  setupBtnGroup('rpe-group','rpe-btn','f-rpe');
   ['mood','sleepQuality','soreness','stress','fatigue','motivation'].forEach(k=>setupBtnGroup(k+'-group','btn-option','f-'+k));
 
   const painGroup=document.getElementById('painConcern-group');
