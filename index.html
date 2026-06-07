@@ -828,7 +828,7 @@ function renderPlayerPage(pid) {
     </div>`;
 
   initCheckinForm(pid, isTournament);
-  loadPlayerEntriesForChart(pid).then(buildPlayerLoadChart);
+  loadPlayerEntriesForChart(pid).then(data=>{ if(currentPlayerId===pid) buildPlayerLoadChart(data); });
 }
 
 function buildPracticeForm() {
@@ -964,7 +964,7 @@ function playerNoteField(label, placeholder) {
 
 // ---- FORM INIT ----
 function initCheckinForm(pid, isTournament) {
-  setupBtnGroup('rpe-group','btn-rpe','f-rpe');
+  setupBtnGroup('rpe-group','rpe-btn','f-rpe');
   ['mood','sleepQuality','soreness','stress','fatigue','motivation'].forEach(k=>setupBtnGroup(k+'-group','btn-option','f-'+k));
 
   const painGroup=document.getElementById('painConcern-group');
@@ -1060,12 +1060,20 @@ async function loadPlayerEntriesForChart(pid) {
 function buildPlayerLoadChart(entries) {
   const canvas=document.getElementById('player-load-chart');
   if(!canvas) return;
-  const labels=[],rpeData=[],loadData=[];
-  const seen=new Set();
+  const byDate={};
   entries.forEach(e=>{
-    if(!e.date||seen.has(e.date)) return;
-    seen.add(e.date); labels.push(e.date.slice(5));
-    rpeData.push(e.rpe||0); loadData.push((e.rpe||0)*(e.duration||0));
+    if(!e.date) return;
+    if(!byDate[e.date]) byDate[e.date]={rpeSum:0,loadSum:0,count:0};
+    byDate[e.date].rpeSum+=(e.rpe||0);
+    byDate[e.date].loadSum+=(e.rpe||0)*(e.duration||0);
+    byDate[e.date].count++;
+  });
+  const labels=[],rpeData=[],loadData=[];
+  Object.keys(byDate).sort().forEach(date=>{
+    const d=byDate[date];
+    labels.push(date.slice(5));
+    rpeData.push(parseFloat((d.rpeSum/d.count).toFixed(1)));
+    loadData.push(Math.round(d.loadSum/d.count));
   });
   if(playerLoadChart){playerLoadChart.destroy();playerLoadChart=null;}
   if(!labels.length){canvas.parentElement.innerHTML='<div class="no-data">Sin datos suficientes para la gráfica.</div>';return;}
