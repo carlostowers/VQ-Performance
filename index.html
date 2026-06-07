@@ -734,9 +734,9 @@ function renderGameDay(teamFilter) {
   tabsEl.innerHTML=tournamentTeams.map(t=>`<div class="filter-tab ${t===activeTeam?'active':''}" onclick="renderGameDay('${t}')">${t}</div>`).join('');
   const players=DB.players.filter(p=>p.team===activeTeam);
   const sorted=[...players].sort((a,b)=>{
-    const sa=readinessScore(playerEntries(a.id))??-1;
-    const sb=readinessScore(playerEntries(b.id))??-1;
-    return sb-sa;
+    const scoreA=readinessScore(playerEntries(a.id))??-1;
+    const scoreB=readinessScore(playerEntries(b.id))??-1;
+    return scoreB-scoreA;
   });
   if(!sorted.length){contentEl.innerHTML='<div class="no-data">No hay jugadores en este equipo.</div>';return;}
   contentEl.innerHTML=sorted.map((p,i)=>{
@@ -1179,11 +1179,15 @@ function exportJSON() {
   const blob=new Blob([JSON.stringify({players:DB.players,entries:DB.entries},null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vaqueros-'+today()+'.json';a.click();
 }
+function csvEscape(s){
+  s=(s||'').toString().replace(/"/g,'""');
+  return (s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s}"`:s;
+}
 function exportCSV() {
   const h='fecha,jugador,equipo,numero,posicion,duracion,rpe,carga,mood,sueno,dolor,estres,fatiga,motivacion,notas\n';
   const rows=DB.entries.map(e=>{
     const p=DB.players.find(x=>x.id===e.playerId)||{};
-    return[e.date,p.name,p.team,p.number,p.position,e.duration,e.rpe,internalLoad(e),e.mood,e.sleepQuality,e.soreness,e.stress,e.fatigue,e.motivation,(e.notes||'').replace(/,/g,';')].join(',');
+    return[e.date,csvEscape(p.name),p.team,p.number,p.position,e.duration,e.rpe,internalLoad(e),e.mood,e.sleepQuality,e.soreness,e.stress,e.fatigue,e.motivation,csvEscape(e.notes)].join(',');
   }).join('\n');
   const blob=new Blob([h+rows],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vaqueros-'+today()+'.csv';a.click();
