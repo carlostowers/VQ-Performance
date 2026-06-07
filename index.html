@@ -527,10 +527,10 @@ function checkURLPlayer() {
 function initials(n) { return n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
 function rpeClass(r) { return r>=8?'rpe-high':r>=6?'rpe-mid':'rpe-low'; }
 function rpeColor(r) { return r>=8?'rpe-high':r>=6?'rpe-mid':'rpe-ok'; }
-function wdClass(f,v) {
+function wdClass(f, v) {
   if(!v) return 'wd-gray';
-  if(f==='mood'||f==='sleepQuality') return v<=2?'wd-red':v===3?'wd-orange':'wd-green';
-  if(f==='soreness'||f==='stress') return v>=4?'wd-red':v===3?'wd-orange':'wd-green';
+  if(f === 'mood' || f === 'sleepQuality') return v <= 2 ? 'wd-red' : v === 3 ? 'wd-orange' : 'wd-green';
+  if(f === 'soreness' || f === 'stress') return v <= 2 ? 'wd-red' : v === 3 ? 'wd-orange' : 'wd-green';
   return 'wd-gray';
 }
 function internalLoad(e) { return (e.rpe||0)*(e.duration||0); }
@@ -539,13 +539,13 @@ function today() { return new Date().toISOString().slice(0,10); }
 function playerEntries(pid) { return DB.entries.filter(e=>e.playerId===pid).sort((a,b)=>b.date.localeCompare(a.date)); }
 function isAlert(e) {
   if(!e) return null;
-  const r=[];
-  if(e.rpe>=8) r.push('RPE '+e.rpe);
-  if(e.sleepQuality<=2) r.push('Sueño bajo');
-  if(e.soreness>=4) r.push('Dolor alto');
-  if(e.stress>=4) r.push('Estrés alto');
-  if((e.painConcern||0)>=2) r.push('Dolor preocupante');
-  return r.length?r:null;
+  const r = [];
+  if(e.rpe >= 8) r.push('RPE ' + e.rpe);
+  if(e.sleepQuality <= 2) r.push('Sueño bajo');
+  if(e.soreness <= 2) r.push('Dolor alto');
+  if(e.stress <= 2) r.push('Estrés alto');
+  if((e.painConcern || 0) >= 2) r.push('Dolor preocupante');
+  return r.length ? r : null;
 }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function toast(msg,isErr=false,dur=2800) {
