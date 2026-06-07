@@ -560,10 +560,12 @@ function readinessScore(entries) {
   const motivation=last.motivation||3;
   const sleep=last.sleepQuality||3;
   const painConcern=last.painConcern||0;
+  const soreness=last.soreness||3;
   const base=(fatigue+motivation+sleep)/3;
   const dolorPen=painConcern*0.5;
-  let rpePen=0; if(prev&&prev.rpe>=8) rpePen=1;
-  let raw=base-dolorPen-rpePen;
+  const sorenessPen=soreness<=2?1:soreness===3?0.5:0;
+  let rpePen=0; if(prev&&prev.rpe>=8) rpePen=0.5;
+  let raw=base-dolorPen-sorenessPen-rpePen;
   if(raw<1)raw=1; if(raw>5)raw=5;
   return Math.round((raw/5)*10);
 }
@@ -782,24 +784,15 @@ function renderPlayerPage(pid) {
   const coachBanner=coachMsg?`<div class="coach-banner"><strong>Mensaje de tu coach:</strong> ${coachMsg}</div>`:'';
   const gameDayBanner=isTournament?`<div class="gameday-banner">🏆 Modo Torneo activado — Check-in Game Day</div>`:'';
 
-  const histRows = entries.slice(0, 10).map(e => `
-  <tr>
-    <td>${e.date}</td>
-    <td>${e.duration ?? '—'}</td>
-    <td><span class="rpe-pill ${rpeClass(e.rpe)}">${e.rpe}</span></td>
-    <td>${internalLoad(e)}</td>
-    <td>${e.mood ?? '—'} ${e.sleepQuality ?? '—'} ${e.soreness ?? '—'} ${e.stress ?? '—'}</td>
-    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${e.notes ?? ''}</td>
-    <td>
-      <button
-        onclick="confirmDeleteEntry('${e.id}', '${e.date}', '${pid}')"
-        style="background:transparent;border:1px solid rgba(224,82,82,0.3);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.04em;"
-        onmouseover="this.style.background='rgba(224,82,82,0.12)'"
-        onmouseout="this.style.background='transparent'"
-      >🗑</button>
-    </td>
-  </tr>
-`).join('');
+  const histRows=entries.slice(0,10).map(e=>`
+    <tr>
+      <td>${e.date}</td>
+      <td>${e.duration??'—'}</td>
+      <td><span class="rpe-pill ${rpeClass(e.rpe)}">${e.rpe}</span></td>
+      <td>${internalLoad(e)}</td>
+      <td>${e.mood??'—'} / ${e.sleepQuality??'—'} / ${e.soreness??'—'} / ${e.stress??'—'}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${e.notes||''}</td>
+    </tr>`).join('');
 
   const formHTML = isTournament ? buildGameDayForm() : buildPracticeForm();
 
@@ -823,13 +816,7 @@ function renderPlayerPage(pid) {
       ${entries.length===0?'<div class="no-data">Sin entradas registradas aún.</div>':`
         <div class="history-table-wrap">
           <table class="history-table">
-            <thead><tr><th>Fecha</th>
-<th>${isTournament ? 'Juegos' : 'Min'}</th>
-<th>RPE</th>
-<th>Carga</th>
-<th>MSDE</th>
-<th>Notas</th>
-<th></th>
+            <thead><tr><th>Fecha</th><th>${isTournament?'Juegos':'Min'}</th><th>RPE</th><th>Carga</th><th>M/S/D/E</th><th>Notas</th></tr></thead>
             <tbody>${histRows}</tbody>
           </table>
         </div>`}
@@ -977,7 +964,7 @@ function playerNoteField(label, placeholder) {
 
 // ---- FORM INIT ----
 function initCheckinForm(pid, isTournament) {
-  setupBtnGroup('rpe-group','rpe-btn','f-rpe');
+  setupBtnGroup('rpe-group','btn-rpe','f-rpe');
   ['mood','sleepQuality','soreness','stress','fatigue','motivation'].forEach(k=>setupBtnGroup(k+'-group','btn-option','f-'+k));
 
   const painGroup=document.getElementById('painConcern-group');
@@ -1027,6 +1014,9 @@ function setupBtnGroup(groupId, btnClass, hiddenId) {
 async function saveEntry(pid) {
   const rpe=parseInt(document.getElementById('f-rpe')?.value||'0');
   if(!rpe){toast('⚠ Selecciona un RPE antes de guardar',true);return;}
+  const moodVal=parseInt(document.getElementById('f-mood')?.value||'0');
+  const sleepVal=parseInt(document.getElementById('f-sleepQuality')?.value||'0');
+  if(!moodVal||!sleepVal){toast('⚠ Completa al menos Ánimo y Sueño',true);return;}
   const btn=document.getElementById('save-btn');
   if(btn){btn.disabled=true;btn.textContent='Guardando…';}
   let pain_zones=[];
@@ -1037,8 +1027,8 @@ async function saveEntry(pid) {
     session_label:null,
     duration:parseInt(document.getElementById('f-duration')?.value)||0,
     rpe,
-    mood:parseInt(document.getElementById('f-mood')?.value)||null,
-    sleep_quality:parseInt(document.getElementById('f-sleepQuality')?.value)||null,
+    mood:moodVal,
+    sleep_quality:sleepVal,
     soreness:parseInt(document.getElementById('f-soreness')?.value)||null,
     stress:parseInt(document.getElementById('f-stress')?.value)||null,
     fatigue:parseInt(document.getElementById('f-fatigue')?.value)||null,
@@ -1215,41 +1205,7 @@ async function importJSON(event) {
   reader.readAsText(file);
 }
 
-    init();
-
-    function confirmDeleteEntry(entryId, entryDate, pid) {
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.id = 'delete-modal';
-      modal.innerHTML = `
-        <div class="modal-box">
-          <div class="modal-title" style="color:var(--red)">🗑 Borrar entrada</div>
-          <div class="modal-subtitle">¿Seguro que quieres borrar la entrada del <strong>${entryDate}</strong>? Esta acción no se puede deshacer.</div>
-          <div class="modal-actions">
-            <button class="btn-ghost" onclick="document.getElementById('delete-modal').remove()">Cancelar</button>
-            <button class="btn-primary" style="background:var(--red)" onclick="deleteEntry('${entryId}', '${pid}')">Sí, borrar</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    }
-
-    async function deleteEntry(entryId, pid) {
-      const modal = document.getElementById('delete-modal');
-      if (modal) modal.remove();
-      showLoading(true);
-      const { error } = await sb.from('entries').delete().eq('id', entryId);
-      showLoading(false);
-      if (error) {
-        toast('Error al borrar la entrada', true);
-        console.error(error);
-        return;
-      }
-      DB.entries = DB.entries.filter(e => e.id !== entryId);
-      toast('Entrada borrada ✓');
-      renderPlayerPage(pid);
-    }
-
+init();
 </script>
 
 <!-- COACH MESSAGE MODAL -->
