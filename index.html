@@ -782,15 +782,24 @@ function renderPlayerPage(pid) {
   const coachBanner=coachMsg?`<div class="coach-banner"><strong>Mensaje de tu coach:</strong> ${coachMsg}</div>`:'';
   const gameDayBanner=isTournament?`<div class="gameday-banner">🏆 Modo Torneo activado — Check-in Game Day</div>`:'';
 
-  const histRows=entries.slice(0,10).map(e=>`
-    <tr>
-      <td>${e.date}</td>
-      <td>${e.duration??'—'}</td>
-      <td><span class="rpe-pill ${rpeClass(e.rpe)}">${e.rpe}</span></td>
-      <td>${internalLoad(e)}</td>
-      <td>${e.mood??'—'} / ${e.sleepQuality??'—'} / ${e.soreness??'—'} / ${e.stress??'—'}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${e.notes||''}</td>
-    </tr>`).join('');
+  const histRows = entries.slice(0, 10).map(e => `
+  <tr>
+    <td>${e.date}</td>
+    <td>${e.duration ?? '—'}</td>
+    <td><span class="rpe-pill ${rpeClass(e.rpe)}">${e.rpe}</span></td>
+    <td>${internalLoad(e)}</td>
+    <td>${e.mood ?? '—'} ${e.sleepQuality ?? '—'} ${e.soreness ?? '—'} ${e.stress ?? '—'}</td>
+    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${e.notes ?? ''}</td>
+    <td>
+      <button
+        onclick="confirmDeleteEntry('${e.id}', '${e.date}', '${pid}')"
+        style="background:transparent;border:1px solid rgba(224,82,82,0.3);color:var(--red);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.04em;"
+        onmouseover="this.style.background='rgba(224,82,82,0.12)'"
+        onmouseout="this.style.background='transparent'"
+      >🗑</button>
+    </td>
+  </tr>
+`).join('');
 
   const formHTML = isTournament ? buildGameDayForm() : buildPracticeForm();
 
@@ -814,7 +823,13 @@ function renderPlayerPage(pid) {
       ${entries.length===0?'<div class="no-data">Sin entradas registradas aún.</div>':`
         <div class="history-table-wrap">
           <table class="history-table">
-            <thead><tr><th>Fecha</th><th>${isTournament?'Juegos':'Min'}</th><th>RPE</th><th>Carga</th><th>M/S/D/E</th><th>Notas</th></tr></thead>
+            <thead><tr><th>Fecha</th>
+<th>${isTournament ? 'Juegos' : 'Min'}</th>
+<th>RPE</th>
+<th>Carga</th>
+<th>MSDE</th>
+<th>Notas</th>
+<th></th>
             <tbody>${histRows}</tbody>
           </table>
         </div>`}
