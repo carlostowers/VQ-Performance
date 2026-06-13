@@ -13,19 +13,19 @@
   "categories": ["sports", "health", "productivity"],
   "icons": [
     {
-      "src": "https://i.ibb.co/jvRzSyjQ/generated-image-4.png",
+      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://i.ibb.co/jvRzSyjQ/generated-image-4.png",
+      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://i.ibb.co/jvRzSyjQ/generated-image-4.png",
+      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

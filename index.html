@@ -8,7 +8,7 @@
 
 <!-- PWA -->
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="https://i.ibb.co/jvRzSyjQ/generated-image-4.png">
+<link rel="apple-touch-icon" href="https://i.ibb.co/SDty8CfW/generated-image-4.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -269,6 +269,17 @@ nav{position:sticky;top:0;z-index:120;background:rgba(3,7,17,0.82);backdrop-filt
 .install-banner .ib-txt b{color:var(--gold);}
 .install-banner button{background:linear-gradient(135deg,var(--gold),#e0992f);color:#1a1405;font-family:var(--disp);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:13px;padding:9px 16px;border:none;border-radius:var(--r-sm);cursor:pointer;white-space:nowrap;flex-shrink:0;}
 .install-banner .ib-close{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;padding:0 4px;flex-shrink:0;}
+.reminder-box{background:linear-gradient(160deg,var(--glass-hi),var(--glass));border:1px solid var(--line);border-radius:var(--r-lg);padding:1.3rem;margin-bottom:1.4rem;}
+.reminder-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:.8rem;flex-wrap:wrap;}
+.reminder-header .rh-title{font-family:var(--disp);font-size:16px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:8px;}
+.reminder-list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto;}
+.reminder-row{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid rgba(255,181,71,.08);font-size:13.5px;}
+.reminder-row:last-child{border-bottom:none;}
+.reminder-row .rr-team{font-family:var(--mono);font-size:10px;letter-spacing:.12em;min-width:32px;}
+.reminder-row .rr-name{flex:1;font-weight:600;}
+.reminder-row .wa-btn{background:rgba(61,220,132,.12);border:1px solid rgba(61,220,132,.35);color:#3ddc84;border-radius:7px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
+.reminder-row .wa-btn:hover{background:rgba(61,220,132,.22);}
+.reminder-toggle{background:var(--gold-soft);border:1px solid rgba(255,181,71,.35);color:var(--gold);font-family:var(--disp);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:13px;padding:9px 16px;border-radius:var(--r-sm);cursor:pointer;white-space:nowrap;}
 .form-input,.form-textarea,select.form-input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;color:var(--text);font-family:var(--body);font-size:14.5px;transition:border-color .15s,box-shadow .15s;}
 .form-input:focus,.form-textarea:focus{outline:none;border-color:var(--azure);box-shadow:0 0 0 3px rgba(255,181,71,.15);}
 .form-textarea{resize:vertical;min-height:74px;}
@@ -384,7 +395,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
 <nav id="main-nav">
   <div class="nav-inner">
     <div class="logo">
-      <img src="https://i.ibb.co/jvRzSyjQ/generated-image-4.png" alt="VQ">
+      <img src="https://i.ibb.co/SDty8CfW/generated-image-4.png" alt="VQ">
       <div class="lt"><b>VQ</b><span>Performance OS</span></div>
     </div>
     <div class="nav-links">
@@ -423,6 +434,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
 
   <div class="pulse-hero" id="pulse-hero"></div>
   <div id="dash-alerts"></div>
+  <div id="dash-reminder"></div>
 
   <div class="risk-grid">
     <div class="panel">
@@ -710,7 +722,7 @@ function htmlEscape(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').repl
 function csvEscape(s){ s=(s==null?'':s).toString().replace(/"/g,'""'); return /[",\n]/.test(s)?'"'+s+'"':s; }
 function initials(n){ return n.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
 function isPlayerMode(){ return !!new URLSearchParams(window.location.search).get('player'); }
-function hexA(hex,a){ var h=hex.replace('#',''); if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; var r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); return 'rgba('+r+','+g+','+b+','+a+')'; }
+function hexA(hex,a){ if(!hex) return 'rgba(255,181,71,'+a+')'; var h=String(hex).replace('#',''); if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; var r=parseInt(h.slice(0,2),16)||0,g=parseInt(h.slice(2,4),16)||0,b=parseInt(h.slice(4,6),16)||0; return 'rgba('+r+','+g+','+b+','+a+')'; }
 function playerEntries(pid){ return DB.entries.filter(e=>e.playerId===pid).sort((a,b)=>b.date.localeCompare(a.date)); }
 function internalLoad(e){ return (e.rpe||0)*(e.duration||0); }
 function rpeClass(r){ return r>=8?'rpe-high':r>=5?'rpe-mid':'rpe-low'; }
@@ -967,6 +979,7 @@ function renderDashboard(teamFilter) {
       ).join('')+'</div>';
   }).join('');
   document.getElementById('dash-alerts').innerHTML = alertBlocks;
+  try { renderReminder(tf); } catch(e){ console.log('reminder:', e); }
 
   // --- ACWR board
   const acwrRows=DB.players.map(p=>({p, r:acwr(p.id)})).filter(x=>x.r!=null).sort((a,b)=>b.r-a.r);
@@ -1187,6 +1200,83 @@ function copyLink(pid, event){
   if(event) event.stopPropagation();
   const link=window.location.origin+window.location.pathname+'?player='+pid;
   navigator.clipboard.writeText(link).then(()=>toast('🔗 Link copiado')).catch(()=>toast('Error al copiar',true));
+}
+
+// ============ RECORDATORIO CHECK-IN ============
+var reminderExpanded = false;
+function playersWithoutCheckinToday(teamFilter){
+  var t = today();
+  var players = DB.players;
+  if(teamFilter && teamFilter!=='ALL') players = players.filter(function(p){ return p.team===teamFilter; });
+  return players.filter(function(p){
+    var hasToday = DB.entries.some(function(e){ return e.playerId===p.id && e.date===t; });
+    return !hasToday;
+  });
+}
+function renderReminder(teamFilter){
+  var slot = document.getElementById('dash-reminder');
+  if(!slot || isPlayerMode()) return;
+  var tf = teamFilter || currentFilter.dash;
+  var missing = playersWithoutCheckinToday(tf);
+  if(!missing.length){
+    slot.innerHTML = '';
+    return;
+  }
+  var label = tf==='ALL' ? 'todos los equipos' : tf;
+  if(!reminderExpanded){
+    slot.innerHTML = '<div style="margin-bottom:1.2rem"><button class="reminder-toggle" onclick="reminderExpanded=true;renderReminder()">📢 '+missing.length+' jugadores sin check-in hoy ('+label+') — Enviar recordatorio</button></div>';
+    return;
+  }
+  var byTeam = {};
+  TEAM_ORDER.forEach(function(team){ byTeam[team] = []; });
+  missing.forEach(function(p){ if(byTeam[p.team]) byTeam[p.team].push(p); });
+  var rows = '';
+  TEAM_ORDER.forEach(function(team){
+    var list = byTeam[team];
+    if(!list.length) return;
+    if(tf!=='ALL' && team!==tf) return;
+    list.forEach(function(p){
+      var col = TEAM_COLOR[team];
+      rows += '<div class="reminder-row">'+
+        '<span class="rr-team" style="color:'+col+'">'+team+'</span>'+
+        '<span class="rr-name">'+htmlEscape(p.name)+'</span>'+
+        (p.phone ? '<button class="wa-btn" onclick="sendReminder(\''+p.id+'\')">📲 WhatsApp</button>' : '<span style="color:var(--faint);font-size:11px">Sin tel.</span>')+
+      '</div>';
+    });
+  });
+  slot.innerHTML = '<div class="reminder-box">'+
+    '<div class="reminder-header">'+
+      '<div class="rh-title">📢 Recordatorio de check-in</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="wa-btn" onclick="sendBulkReminder()" style="font-size:13px;padding:8px 14px">📲 Enviar a todos ('+missing.filter(function(p){return !!p.phone;}).length+')</button>'+
+        '<button class="reminder-toggle" onclick="reminderExpanded=false;renderReminder()" style="padding:8px 12px;font-size:12px">✕ Cerrar</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:var(--dim);margin-bottom:.7rem">'+missing.length+' jugadores de '+label+' aún no registran hoy ('+today()+')</div>'+
+    '<div class="reminder-list">'+rows+'</div>'+
+  '</div>';
+}
+function sendReminder(pid){
+  var p = DB.players.find(function(x){ return x.id===pid; });
+  if(!p) return;
+  var phone = cleanPhone(p.phone);
+  if(!phone){ toast('⚠ Sin teléfono registrado',true); return; }
+  var link = window.location.origin + window.location.pathname + '?player=' + p.id;
+  var msg = '¡Hola ' + p.name.split(' ')[0] + '! 🏐\n\nRecuerda llenar tu check-in de hoy en Vaqueros Performance OS.\n\nToma 1 minuto → ' + link;
+  window.open('https://wa.me/1' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+}
+function sendBulkReminder(){
+  var tf = currentFilter.dash;
+  var missing = playersWithoutCheckinToday(tf).filter(function(p){ return !!p.phone; });
+  if(!missing.length){ toast('⚠ Todos los jugadores ya tienen check-in o no tienen teléfono',true); return; }
+  var idx = 0;
+  function sendNext(){
+    if(idx >= missing.length){ toast('✓ Recordatorios enviados a ' + missing.length + ' jugadores'); return; }
+    sendReminder(missing[idx].id);
+    idx++;
+    setTimeout(sendNext, 800);
+  }
+  sendNext();
 }
 
 // ============ GAME DAY ============
@@ -1740,11 +1830,12 @@ function importJSON(ev){
   ev.target.value='';
 }
 
-// ============ PWA: SERVICE WORKER + INSTALL ============
+// ============ PWA: INSTALL ============
+// Limpiar cualquier Service Worker previo que cause errores
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('/sw.js').catch(function(err){ console.log('SW falló:', err); });
-  });
+  navigator.serviceWorker.getRegistrations().then(function(regs){
+    regs.forEach(function(r){ r.unregister(); });
+  }).catch(function(){});
 }
 var deferredInstallPrompt = null;
 function isStandalone(){
@@ -1799,7 +1890,7 @@ function dismissInstall(){
 
 // ============ START ============
 init();
-renderInstallBanners();
+try { renderInstallBanners(); } catch(e){ console.log('install banners:', e); }
 </script>
 </body>
 </html>
