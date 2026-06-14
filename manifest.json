@@ -13,19 +13,19 @@
   "categories": ["sports", "health", "productivity"],
   "icons": [
     {
-      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
+      "src": "https://raw.githubusercontent.com/carlostowers/Vaqueros-app/main/vq-logo.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
+      "src": "https://raw.githubusercontent.com/carlostowers/Vaqueros-app/main/vq-logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://i.ibb.co/SDty8CfW/generated-image-4.png",
+      "src": "https://raw.githubusercontent.com/carlostowers/Vaqueros-app/main/vq-logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
