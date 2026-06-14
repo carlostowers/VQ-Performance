@@ -19,7 +19,7 @@
 (function() {
   if (new URLSearchParams(window.location.search).get('player')) {
     var style = document.createElement('style');
-    style.textContent = '#main-nav{display:none!important}#mobile-menu{display:none!important}#page-dashboard,#page-roster,#page-records,#page-import,#page-gameday{display:none!important}footer{display:none!important}';
+    style.textContent = '#main-nav{display:none!important}#mobile-menu{display:none!important}#page-dashboard,#page-roster,#page-records,#page-import,#page-gameday,#page-taper{display:none!important}footer{display:none!important}';
     document.head && document.head.appendChild(style);
   }
 })();
@@ -402,6 +402,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
       <div class="nav-link active" onclick="showPage('dashboard')">Dashboard</div>
       <div class="nav-link" onclick="showPage('roster')">Roster</div>
       <div class="nav-link" id="nav-gameday" style="display:none" onclick="showPage('gameday')">🏆 Game Day</div>
+      <div class="nav-link" id="nav-taper" style="display:none" onclick="showPage('taper')">🎯 Taper</div>
       <div class="nav-link" onclick="showPage('records')">Historial</div>
       <div class="nav-link" onclick="showPage('import')">Datos</div>
     </div>
@@ -416,6 +417,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
   <div class="nav-link active" id="mob-dashboard" onclick="showPage('dashboard');closeMobileMenu()">Dashboard</div>
   <div class="nav-link" id="mob-roster" onclick="showPage('roster');closeMobileMenu()">Roster</div>
   <div class="nav-link" id="mob-gameday" style="display:none" onclick="showPage('gameday');closeMobileMenu()">🏆 Game Day</div>
+  <div class="nav-link" id="mob-taper" style="display:none" onclick="showPage('taper');closeMobileMenu()">🎯 Taper</div>
   <div class="nav-link" id="mob-records" onclick="showPage('records');closeMobileMenu()">Historial</div>
   <div class="nav-link" id="mob-import" onclick="showPage('import');closeMobileMenu()">Datos</div>
 </div>
@@ -483,6 +485,14 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
   <div class="page-sub">Ranking de jugadores listos para competir — score 0 a 10</div>
   <div class="filter-tabs" id="gameday-team-tabs"></div>
   <div id="gameday-content"></div>
+</div>
+
+<!-- TAPER -->
+<div class="page" id="page-taper">
+  <div class="eyebrow">Puesta a punto</div>
+  <div class="page-title">Taper · Ventana Pre-Torneo</div>
+  <div class="page-sub">Carga, intensidad y readiness rumbo a Windy City y AAU Orlando</div>
+  <div id="taper-content"></div>
 </div>
 
 <!-- PLAYER -->
@@ -669,9 +679,20 @@ let teamLoadChart = null;
 let playerLoadChart = null;
 let radarChart = null;
 let _gamedayTeam = null;
+let taperLoadChart = null;
+let taperVwiChart = null;
+let currentTaperFilter = 'ALL';
+
+// Metrics cache (Fase 2)
+let _dbVersion = 0;
+let _metricsCache = { version:-1, byPlayer:{} };
 
 const TEAM_COLOR = {'17M':'#FFB547','15M':'#34e3a5','14M':'#9d7bff'};
 const TEAM_ORDER = ['17M','15M','14M'];
+const TOURNAMENTS = [
+  { id:'windy', name:'Windy City', sub:'Chicago, IL', startDate:'2026-06-18', endDate:'2026-06-22', teams:['17M'], color:'#FFB547' },
+  { id:'orlando', name:'AAU Orlando', sub:'Orlando, FL', startDate:'2026-07-05', endDate:'2026-07-11', teams:['17M','15M','14M'], color:'#9d7bff' }
+];
 
 // ============ DATA ============
 async function seedPlayersIfNeeded() {
@@ -693,6 +714,7 @@ async function loadAll() {
   ]);
   DB.players = players || [];
   DB.entries = (entries || []).map(normalizeEntry);
+  try { invalidateMetricsCache(); } catch(e) { /* cache may not be ready on first call; will init lazily */ }
 }
 function normalizeEntry(e) {
   return {
@@ -885,9 +907,14 @@ function showPage(name, pid) {
   if (mob) mob.classList.add('active');
   if (name !== 'player' && playerLoadChart) { playerLoadChart.destroy(); playerLoadChart = null; }
   if (name !== 'player' && radarChart) { radarChart.destroy(); radarChart = null; }
+  if (name !== 'taper') {
+    if (taperLoadChart) { taperLoadChart.destroy(); taperLoadChart = null; }
+    if (taperVwiChart) { taperVwiChart.destroy(); taperVwiChart = null; }
+  }
   if (name==='dashboard') renderDashboard();
   else if (name==='roster') renderRoster();
   else if (name==='gameday') renderGameDay();
+  else if (name==='taper') renderTaper();
   else if (name==='player' && pid) renderPlayerPage(pid);
   else if (name==='records') renderRecords();
   window.scrollTo(0,0);
@@ -915,6 +942,7 @@ async function init() {
   } catch(e) { toast('Error conectando a Supabase', true); console.error(e); }
   showLoading(false);
   updateGameDayNav();
+  updateTaperNav();
   if (!checkURLPlayer()) renderDashboard();
 }
 function showLoading(v) {
@@ -981,8 +1009,8 @@ function renderDashboard(teamFilter) {
   document.getElementById('dash-alerts').innerHTML = alertBlocks;
   try { renderReminder(tf); } catch(e){ console.log('reminder:', e); }
 
-  // --- ACWR board
-  const acwrRows=DB.players.map(p=>({p, r:acwr(p.id)})).filter(x=>x.r!=null).sort((a,b)=>b.r-a.r);
+  // --- ACWR board (usa cache de métricas)
+  const acwrRows=DB.players.map(p=>({p, r:getMetrics(p.id).acwr})).filter(x=>x.r!=null).sort((a,b)=>b.r-a.r);
   document.getElementById('acwr-board').innerHTML = acwrRows.length?
     acwrRows.slice(0,7).map(({p,r})=>{
       const z=acwrZone(r);
@@ -996,8 +1024,8 @@ function renderDashboard(teamFilter) {
     }).join('')
     : emptyState('📡','Sin datos suficientes','El ACWR necesita al menos 4 días con check-ins en los últimos 28 días por jugador.');
 
-  // --- Monotonía board
-  const monoRows=DB.players.map(p=>({p, m:monotony(p.id)})).filter(x=>x.m&&x.m.mono!=null).sort((a,b)=>b.m.mono-a.m.mono);
+  // --- Monotonía board (usa cache de métricas)
+  const monoRows=DB.players.map(p=>({p, m:getMetrics(p.id).monotony})).filter(x=>x.m&&x.m.mono!=null).sort((a,b)=>b.m.mono-a.m.mono);
   document.getElementById('monotony-board').innerHTML = monoRows.length?
     monoRows.slice(0,7).map(({p,m})=>{
       const danger=m.mono>=2;
@@ -1145,6 +1173,467 @@ function renderTeamLoadChart(){
       }
     }
   });
+}
+
+// ============ METRICS CACHE (Fase 2) ============
+// Cachea por jugador: acwr · monotony · readiness · vwi · recovery · entries · lastEntry.
+// Se invalida en loadAll() (que es llamado tras todo write).
+function invalidateMetricsCache(){
+  _dbVersion++;
+  _metricsCache = { version:_dbVersion, byPlayer:{} };
+}
+function getMetrics(pid){
+  if(_metricsCache.version !== _dbVersion){ _metricsCache = { version:_dbVersion, byPlayer:{} }; }
+  if(!_metricsCache.byPlayer[pid]){
+    var pe = playerEntries(pid);
+    _metricsCache.byPlayer[pid] = {
+      entries: pe,
+      lastEntry: pe[0] || null,
+      acwr: acwr(pid),
+      monotony: monotony(pid),
+      readiness: readinessScore(pe),
+      vwi: vwi(pid),
+      recovery: recoveryQuality(pid)
+    };
+  }
+  return _metricsCache.byPlayer[pid];
+}
+
+// ============ VWI · VAQUEROS WELLNESS INDEX (Fase 3) ============
+// 0-100. Pondera 6 variables y penaliza por dolor preocupante.
+// Sueño 25% · fatiga 25% · ánimo 15% · estrés 15% · soreness 10% · motivación 10%.
+function vwiFromEntry(e){
+  if(!e) return null;
+  var s  = (((e.sleepQuality||3)-1)/4) * 100;
+  var f  = (((e.fatigue||3)-1)/4) * 100;
+  var m  = (((e.mood||3)-1)/4) * 100;
+  var st = (((e.stress||3)-1)/4) * 100;
+  var so = (((e.soreness||3)-1)/4) * 100;
+  var mo = (((e.motivation||3)-1)/4) * 100;
+  var base = s*0.25 + f*0.25 + m*0.15 + st*0.15 + so*0.10 + mo*0.10;
+  var penalty = (e.painConcern||0) * 8;
+  var v = Math.round(base - penalty);
+  if(v<0) v=0; if(v>100) v=100;
+  return v;
+}
+function vwi(pid){
+  var pe = playerEntries(pid);
+  if(!pe.length) return null;
+  return vwiFromEntry(pe[0]);
+}
+function vwiZone(v){
+  if(v==null) return { col:'#6b5d3e', label:'—' };
+  if(v>=75) return { col:'#34e3a5', label:'óptimo' };
+  if(v>=60) return { col:'#FFB547', label:'aceptable' };
+  if(v>=45) return { col:'#FF8C00', label:'bajo' };
+  return { col:'#ff5d6c', label:'crítico' };
+}
+
+// ============ CALIDAD DE RECUPERACIÓN ENTRE SESIONES (Fase 3) ============
+// Para cada día con un día previo de RPE>=7: bienestar matutino (sueño+fatiga)/2 >= 3.5 = recuperado.
+function recoveryQuality(pid){
+  var pe = playerEntries(pid).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+  if(pe.length < 2) return null;
+  var pairs = [];
+  for(var i=1; i<pe.length; i++){
+    var prev = pe[i-1], curr = pe[i];
+    if((prev.rpe||0) >= 7){
+      var wellness = (((curr.sleepQuality||3) + (curr.fatigue||3)) / 2);
+      pairs.push({ date: curr.date, prevRPE: prev.rpe, wellness: wellness, good: wellness >= 3.5 });
+    }
+  }
+  if(!pairs.length) return null;
+  var streak = 0;
+  for(var j=pairs.length-1; j>=0; j--){
+    if(!pairs[j].good) streak++; else break;
+  }
+  return {
+    lastQuality: pairs[pairs.length-1].wellness,
+    streakUnderRecovered: streak,
+    n: pairs.length,
+    recent: pairs.slice(-5)
+  };
+}
+
+// ============ TAPER (Fase 1) ============
+function daysUntil(iso){
+  try {
+    var t = new Date(); t.setHours(0,0,0,0);
+    var target = new Date(iso+'T00:00:00');
+    return Math.round((target-t)/86400000);
+  } catch(e){ return null; }
+}
+function formatTournamentRange(startISO, endISO){
+  var meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  var sd = new Date(startISO+'T00:00:00');
+  var ed = new Date(endISO+'T00:00:00');
+  if(sd.getMonth()===ed.getMonth()) return sd.getDate()+'–'+ed.getDate()+' '+meses[sd.getMonth()];
+  return sd.getDate()+' '+meses[sd.getMonth()]+'–'+ed.getDate()+' '+meses[ed.getMonth()];
+}
+function teamPidsFor(tf){
+  if(tf==='ALL') return DB.players.map(function(p){return p.id;});
+  return DB.players.filter(function(p){return p.team===tf;}).map(function(p){return p.id;});
+}
+function teamWeeklyLoads(tf){
+  var pids = teamPidsFor(tf);
+  var weeks = [0,0,0,0];
+  for(var w=0; w<4; w++){
+    var fromDay = w*7, toDay = w*7+6;
+    DB.entries.forEach(function(e){
+      if(pids.indexOf(e.playerId)===-1) return;
+      if(e.date>=daysAgoStr(toDay) && e.date<=daysAgoStr(fromDay)){
+        weeks[w] += internalLoad(e);
+      }
+    });
+  }
+  return [weeks[3], weeks[2], weeks[1], weeks[0]];
+}
+function teamWeeklyAvgRPE(tf){
+  var pids = teamPidsFor(tf);
+  var bins = [[],[],[],[]];
+  for(var w=0; w<4; w++){
+    var fromDay = w*7, toDay = w*7+6;
+    DB.entries.forEach(function(e){
+      if(pids.indexOf(e.playerId)===-1) return;
+      if(e.date>=daysAgoStr(toDay) && e.date<=daysAgoStr(fromDay)){
+        if((e.rpe||0)>0) bins[w].push(e.rpe);
+      }
+    });
+  }
+  return [bins[3], bins[2], bins[1], bins[0]].map(function(arr){
+    if(!arr.length) return null;
+    return arr.reduce(function(a,b){return a+b;},0)/arr.length;
+  });
+}
+function teamAvgReadiness(tf){
+  var players = (tf==='ALL') ? DB.players : DB.players.filter(function(p){return p.team===tf;});
+  var arr = [];
+  players.forEach(function(p){
+    var m = getMetrics(p.id);
+    if(m.readiness!=null) arr.push(m.readiness);
+  });
+  if(!arr.length) return null;
+  return arr.reduce(function(a,b){return a+b;},0)/arr.length;
+}
+function teamAvgACWR(tf){
+  var players = (tf==='ALL') ? DB.players : DB.players.filter(function(p){return p.team===tf;});
+  var arr = [];
+  players.forEach(function(p){
+    var m = getMetrics(p.id);
+    if(m.acwr!=null) arr.push(m.acwr);
+  });
+  if(!arr.length) return null;
+  return arr.reduce(function(a,b){return a+b;},0)/arr.length;
+}
+function teamAvgVWI(tf){
+  var players = (tf==='ALL') ? DB.players : DB.players.filter(function(p){return p.team===tf;});
+  var arr = [];
+  players.forEach(function(p){
+    var m = getMetrics(p.id);
+    if(m.vwi!=null) arr.push(m.vwi);
+  });
+  if(!arr.length) return null;
+  return Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length);
+}
+function teamAvgRPELastWeek(tf){
+  var pids = teamPidsFor(tf);
+  var vals = [];
+  DB.entries.forEach(function(e){
+    if(pids.indexOf(e.playerId)===-1) return;
+    if(e.date>=daysAgoStr(6) && (e.rpe||0)>0) vals.push(e.rpe);
+  });
+  if(!vals.length) return null;
+  return vals.reduce(function(a,b){return a+b;},0)/vals.length;
+}
+function vwiDailyAvg(tf, days){
+  var pids = teamPidsFor(tf);
+  var pidSet = {}; pids.forEach(function(id){ pidSet[id]=true; });
+  var out = [];
+  for(var i=days-1; i>=0; i--){
+    var d = daysAgoStr(i);
+    var vs = [];
+    DB.entries.forEach(function(e){
+      if(!pidSet[e.playerId]) return;
+      if(e.date !== d) return;
+      var v = vwiFromEntry(e);
+      if(v!=null) vs.push(v);
+    });
+    out.push({ date: d, avg: vs.length ? Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length) : null });
+  }
+  return out;
+}
+function taperStatus(pid){
+  var m = getMetrics(pid);
+  if(!m.lastEntry) return { status:'nodata', label:'Sin datos', color:'#6b5d3e', reasons:[], readiness:null, vwi:null, recovery:null };
+  var reasons = [];
+  if((m.lastEntry.painConcern||0)>=2) reasons.push('dolor preocupante');
+  if((m.lastEntry.sleepQuality||3)<=2) reasons.push('sueño bajo');
+  if((m.lastEntry.fatigue||3)<=2) reasons.push('fatiga alta');
+  if((m.lastEntry.rpe||0)>=8) reasons.push('RPE '+m.lastEntry.rpe);
+  if(m.recovery && m.recovery.streakUnderRecovered>=3) reasons.push('sin recuperar '+m.recovery.streakUnderRecovered+'d');
+  if(reasons.length) return { status:'risk', label:'Atención', color:'#ff5d6c', reasons:reasons, readiness:m.readiness, vwi:m.vwi, recovery:m.recovery };
+  var warnReasons = [];
+  if(m.vwi!=null && m.vwi<55) warnReasons.push('VWI '+m.vwi);
+  if(m.acwr!=null && m.acwr>1.5) warnReasons.push('ACWR '+m.acwr.toFixed(2));
+  if(m.recovery && m.recovery.streakUnderRecovered>=2) warnReasons.push('recup. '+m.recovery.streakUnderRecovered+'d');
+  if(warnReasons.length) return { status:'warn', label:'Fatiga alta', color:'#FF8C00', reasons:warnReasons, readiness:m.readiness, vwi:m.vwi, recovery:m.recovery };
+  if(m.acwr!=null && m.acwr<0.7) return { status:'detrain', label:'ACWR bajo', color:'#9d7bff', reasons:['ACWR '+m.acwr.toFixed(2)+', riesgo desentrenamiento'], readiness:m.readiness, vwi:m.vwi, recovery:m.recovery };
+  return { status:'ready', label:'Listo', color:'#34e3a5', reasons:[], readiness:m.readiness, vwi:m.vwi, recovery:m.recovery };
+}
+function updateTaperNav(){
+  try {
+    var any = TOURNAMENTS.some(function(t){
+      var d = daysUntil(t.endDate);
+      return d!=null && d >= 0;
+    });
+    var btn = document.getElementById('nav-taper');
+    var mob = document.getElementById('mob-taper');
+    if(btn) btn.style.display = any ? 'flex' : 'none';
+    if(mob) mob.style.display = any ? 'flex' : 'none';
+  } catch(e){ console.log('updateTaperNav:', e); }
+}
+function renderTaper(teamFilter){
+  try {
+    if(teamFilter) currentTaperFilter = teamFilter;
+    var tf = currentTaperFilter;
+
+    // --- Countdowns
+    var visibleTorneos = TOURNAMENTS.filter(function(t){
+      if(tf==='ALL') return true;
+      return t.teams.indexOf(tf) !== -1;
+    });
+    var cdHtml = visibleTorneos.map(function(t){
+      var days = daysUntil(t.startDate);
+      var endDays = daysUntil(t.endDate);
+      var statusLabel, statusBg, statusColor;
+      if(endDays!=null && endDays<0){ statusLabel='Finalizado'; statusBg='rgba(255,255,255,.06)'; statusColor='#6b5d3e'; }
+      else if(days!=null && days<=0){ statusLabel='En curso'; statusBg='var(--mint-soft)'; statusColor='var(--mint)'; }
+      else if(days!=null && days<=7){ statusLabel='Ventana crítica'; statusBg='var(--amber-soft)'; statusColor='var(--amber)'; }
+      else if(days!=null && days<=21){ statusLabel='Taper activo'; statusBg='var(--azure-soft)'; statusColor='var(--azure)'; }
+      else { statusLabel='Preparación general'; statusBg='rgba(255,255,255,.06)'; statusColor='var(--dim)'; }
+      var dateRange = formatTournamentRange(t.startDate, t.endDate);
+      var teamPills = t.teams.map(function(team){
+        return '<span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;background:'+hexA(TEAM_COLOR[team],0.18)+';color:'+TEAM_COLOR[team]+';border:1px solid '+hexA(TEAM_COLOR[team],0.35)+'">'+team+'</span>';
+      }).join('');
+      var daysShown = (days!=null) ? Math.max(0,days) : '—';
+      return '<div class="panel" style="border-top:3px solid '+t.color+';text-align:center;padding:1.3rem 1.2rem">'+
+        '<div style="font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px">'+t.name+' · '+t.sub+'</div>'+
+        '<div style="font-family:var(--mono);font-size:54px;font-weight:700;line-height:1;color:'+t.color+';text-shadow:0 0 22px '+hexA(t.color,0.4)+'">'+daysShown+'</div>'+
+        '<div style="font-size:12px;color:var(--dim);margin-top:6px;font-family:var(--mono)">días — '+dateRange+'</div>'+
+        '<div style="display:flex;justify-content:center;gap:6px;margin-top:12px;flex-wrap:wrap">'+teamPills+'</div>'+
+        '<div style="margin-top:12px"><span style="font-family:var(--mono);font-size:10.5px;font-weight:700;padding:5px 13px;border-radius:999px;background:'+statusBg+';color:'+statusColor+';letter-spacing:.06em;text-transform:uppercase">'+statusLabel+'</span></div>'+
+        '</div>';
+    }).join('');
+    var countdownGrid = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:1.4rem">'+cdHtml+'</div>';
+
+    // --- Filter tabs
+    var tabsHtml = '<div class="filter-tabs">'+
+      ['ALL','17M','15M','14M'].map(function(t){
+        var label = t==='ALL' ? 'Todos' : t;
+        return '<div class="filter-tab '+(tf===t?'active':'')+'" onclick="renderTaper(\''+t+'\')">'+label+'</div>';
+      }).join('')+
+    '</div>';
+
+    // --- Carga 4 semanas + delta chips
+    var loads = teamWeeklyLoads(tf);
+    function pctDelta(curr, prev){
+      if(prev==null || prev===0) return null;
+      return Math.round(((curr-prev)/prev)*100);
+    }
+    var deltas = [
+      { label:'Sem -2 vs -3', val: pctDelta(loads[1], loads[0]), hl:false },
+      { label:'Sem -1 vs -2', val: pctDelta(loads[2], loads[1]), hl:false },
+      { label:'Sem actual vs -1', val: pctDelta(loads[3], loads[2]), hl:true }
+    ];
+    function deltaCol(v){
+      if(v==null) return '#6b5d3e';
+      if(v<=-30) return '#34e3a5';
+      if(v<0) return '#FFB547';
+      if(v===0) return '#a8966f';
+      if(v<=20) return '#FF8C00';
+      return '#ff5d6c';
+    }
+    var deltaChipsHtml = deltas.map(function(d){
+      var col = deltaCol(d.val);
+      var sign = (d.val==null) ? '—' : (d.val>0 ? '+'+d.val+'%' : d.val+'%');
+      var fs = d.hl ? '15px' : '13px';
+      var w  = d.hl ? '700' : '600';
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 13px;background:'+hexA(col,0.13)+';border-radius:10px;border:1px solid '+hexA(col,0.32)+'">'+
+        '<div style="font-family:var(--mono);font-size:9.5px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase">'+d.label+'</div>'+
+        '<div style="font-family:var(--mono);font-size:'+fs+';font-weight:'+w+';color:'+col+'">'+sign+'</div>'+
+        '</div>';
+    }).join('');
+    var chartPanel = '<div class="panel" style="margin-bottom:1.4rem">'+
+      '<div class="panel-title"><span class="dot"></span>Curva de carga · últimas 4 semanas</div>'+
+      '<div class="chart-wrap" style="height:240px"><canvas id="taper-load-chart"></canvas></div>'+
+      '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px">'+deltaChipsHtml+'</div>'+
+      '<div class="mono-note">Volumen (RPE × duración) debe descender semana a semana. La intensidad (RPE prom.) debe sostenerse — bajas el "cuánto", no el "qué tan duro".</div>'+
+      '</div>';
+
+    // --- VWI 14d
+    var vwiPanel = '<div class="panel" style="margin-bottom:1.4rem">'+
+      '<div class="panel-title"><span class="dot" style="background:var(--mint);box-shadow:0 0 10px var(--mint)"></span>VWI · Índice de bienestar · 14 días</div>'+
+      '<div class="chart-wrap" style="height:180px"><canvas id="taper-vwi-chart"></canvas></div>'+
+      '<div class="mono-note">VWI integra sueño, fatiga, ánimo, estrés, soreness y motivación en un solo número (0–100). Durante el taper esta línea debe <b>subir</b> mientras la carga baja.</div>'+
+      '</div>';
+
+    // --- Métricas equipo (4 cards)
+    var ac = teamAvgACWR(tf);
+    var vw = teamAvgVWI(tf);
+    var read = teamAvgReadiness(tf);
+    var rpe = teamAvgRPELastWeek(tf);
+    var acStr = (ac!=null) ? ac.toFixed(2) : '—';
+    var acSub = '—', acSubCol = 'var(--dim)';
+    if(ac!=null){
+      if(ac>1.5){ acSub='riesgo'; acSubCol='var(--coral)'; }
+      else if(ac>1.3){ acSub='precaución'; acSubCol='var(--amber)'; }
+      else if(ac>=0.8){ acSub='zona óptima'; acSubCol='var(--mint)'; }
+      else if(ac>=0.7){ acSub='taper en marcha'; acSubCol='var(--azure)'; }
+      else { acSub='desentrenamiento'; acSubCol='var(--violet)'; }
+    }
+    var vwZ = vwiZone(vw);
+    var vwStr = (vw!=null) ? vw : '—';
+    var readStr = (read!=null) ? Math.round(read*10)+'%' : '—';
+    var rpeStr = (rpe!=null) ? rpe.toFixed(1) : '—';
+    function mcard(label, val, sub, subCol){
+      return '<div class="panel" style="padding:1rem 1.15rem">'+
+        '<div style="font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-bottom:6px">'+label+'</div>'+
+        '<div style="font-family:var(--mono);font-size:24px;font-weight:700;line-height:1">'+val+'</div>'+
+        '<div style="font-size:10.5px;margin-top:5px;color:'+subCol+'">'+sub+'</div>'+
+        '</div>';
+    }
+    var metricsRow = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:1.4rem">'+
+      mcard('ACWR equipo', acStr, acSub, acSubCol)+
+      mcard('VWI equipo', vwStr, vwZ.label, vwZ.col)+
+      mcard('Readiness prom.', readStr, 'últimos check-ins', 'var(--dim)')+
+      mcard('RPE prom. 7d', rpeStr, 'intensidad sesión', 'var(--dim)')+
+      '</div>';
+
+    // --- Banderas por jugador
+    var playersList = (tf==='ALL') ? DB.players : DB.players.filter(function(p){return p.team===tf;});
+    var statusOrder = { risk:0, warn:1, detrain:2, nodata:3, ready:4 };
+    var rows = playersList.map(function(p){ return { p:p, st:taperStatus(p.id) }; })
+      .sort(function(a,b){ return statusOrder[a.st.status] - statusOrder[b.st.status]; });
+    var rowsHtml = rows.map(function(r){
+      var avCl = avClass(r.p.team);
+      var bdgCl = bdgClass(r.p.team);
+      var readPct = r.st.readiness!=null ? Math.round(r.st.readiness*10) : null;
+      var barCol = r.st.color;
+      var barWidth = readPct!=null ? readPct : 0;
+      var readChip = readPct!=null ? readPct+'%' : '—';
+      var vwiZ2 = vwiZone(r.st.vwi);
+      var vwiChip = '<span style="font-family:var(--mono);font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;background:'+hexA(vwiZ2.col,0.16)+';color:'+vwiZ2.col+';border:1px solid '+hexA(vwiZ2.col,0.35)+'">VWI '+(r.st.vwi!=null?r.st.vwi:'—')+'</span>';
+      var recChip = '';
+      if(r.st.recovery && r.st.recovery.streakUnderRecovered>=2){
+        recChip = '<span style="font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:'+hexA('#ff5d6c',0.14)+';color:#ff5d6c;border:1px solid '+hexA('#ff5d6c',0.32)+'">−'+r.st.recovery.streakUnderRecovered+'d rec.</span>';
+      }
+      var reasonsLine = r.st.reasons.length ? r.st.reasons.join(' · ') : '—';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(255,181,71,0.08);flex-wrap:wrap">'+
+        '<div class="avatar '+avCl+'" style="width:34px;height:34px;font-size:12px;border-radius:10px">'+initials(r.p.name)+'</div>'+
+        '<div style="flex:1;min-width:140px">'+
+          '<div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer" onclick="openPlayer(\''+r.p.id+'\')">'+htmlEscape(r.p.name)+'</div>'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap"><span class="badge '+bdgCl+'">'+r.p.team+'</span><span style="font-family:var(--mono);font-size:10.5px;color:var(--faint)">'+reasonsLine+'</span></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+vwiChip+recChip+'</div>'+
+        '<div style="position:relative;width:70px;height:5px;border-radius:3px;background:rgba(255,255,255,.07);flex-shrink:0;overflow:hidden"><i style="position:absolute;left:0;top:0;bottom:0;border-radius:3px;width:'+barWidth+'%;background:'+barCol+';box-shadow:0 0 8px '+barCol+'"></i></div>'+
+        '<span style="font-family:var(--mono);font-size:10.5px;color:var(--dim);min-width:30px;text-align:right">'+readChip+'</span>'+
+        '<span class="acwr-chip" style="background:'+hexA(r.st.color,0.16)+';color:'+r.st.color+';border:1px solid '+hexA(r.st.color,0.4)+'">'+r.st.label+'</span>'+
+        '</div>';
+    }).join('');
+    var flagsPanel = '<div class="panel" style="margin-bottom:1.4rem">'+
+      '<div class="panel-title"><span class="dot" style="background:var(--mint);box-shadow:0 0 10px var(--mint)"></span>Banderas por jugador</div>'+
+      (rows.length ? rowsHtml : emptyState('🎯','Sin jugadores','No hay jugadores con datos para este filtro.'))+
+      '</div>';
+
+    // --- Alertas
+    var critical = rows.filter(function(r){ return r.st.status==='risk' || r.st.status==='warn' || r.st.status==='detrain'; });
+    var alertsHtml = '';
+    if(critical.length){
+      alertsHtml = '<div class="panel">'+
+        '<div class="panel-title"><span class="dot" style="background:var(--coral);box-shadow:0 0 10px var(--coral)"></span>Alertas del taper</div>'+
+        critical.map(function(r){
+          return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,181,71,0.06)">'+
+            '<div style="width:8px;height:8px;border-radius:50%;background:'+r.st.color+';box-shadow:0 0 9px '+r.st.color+';margin-top:6px;flex-shrink:0"></div>'+
+            '<div style="font-size:13.5px;line-height:1.5"><span style="font-weight:600;cursor:pointer" onclick="openPlayer(\''+r.p.id+'\')">'+htmlEscape(r.p.name)+'</span><span style="color:var(--dim)"> ('+r.p.team+') — '+(r.st.reasons.join(', ')||r.st.label)+'</span></div>'+
+            '</div>';
+        }).join('')+
+        '</div>';
+    }
+
+    document.getElementById('taper-content').innerHTML = countdownGrid + tabsHtml + chartPanel + vwiPanel + metricsRow + flagsPanel + alertsHtml;
+
+    renderTaperLoadChart(tf);
+    renderTaperVwiChart(tf);
+  } catch(err){ console.log('renderTaper:', err); toast('Error renderizando Taper', true); }
+}
+function renderTaperLoadChart(tf){
+  try {
+    var canvas = document.getElementById('taper-load-chart');
+    if(!canvas) return;
+    var loads = teamWeeklyLoads(tf);
+    var rpes  = teamWeeklyAvgRPE(tf);
+    var col = (tf==='ALL') ? '#FFB547' : TEAM_COLOR[tf];
+    if(taperLoadChart){ taperLoadChart.destroy(); taperLoadChart=null; }
+    var ctx = canvas.getContext('2d');
+    var bgs = [col+'cc', col+'cc', col+'cc', col+'66'];
+    taperLoadChart = new Chart(ctx, {
+      data: {
+        labels: ['Hace 3 sem','Hace 2 sem','Sem pasada','Sem actual'],
+        datasets: [
+          { type:'bar', label:'Carga semanal', data:loads, backgroundColor:bgs, borderColor:col, borderWidth:1, borderRadius:5, maxBarThickness:48, yAxisID:'y' },
+          { type:'line', label:'RPE prom.', data:rpes, borderColor:'#34e3a5', backgroundColor:'transparent', borderWidth:2.5, pointRadius:5, pointBackgroundColor:'#34e3a5', pointBorderColor:'#0b1729', pointBorderWidth:2, tension:.3, yAxisID:'y2', spanGaps:true }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{labels:{color:'#a8966f',font:{family:'JetBrains Mono',size:10.5},boxWidth:12}},
+          tooltip:{backgroundColor:'#0e1a30',borderColor:'rgba(255,181,71,0.3)',borderWidth:1,titleFont:{family:'JetBrains Mono'},bodyFont:{family:'JetBrains Mono'}}
+        },
+        scales:{
+          x:{ticks:{color:'#a8966f',font:{family:'JetBrains Mono',size:10}},grid:{display:false}},
+          y:{position:'left',ticks:{color:'#a8966f',font:{family:'JetBrains Mono',size:9.5}},grid:{color:'rgba(255,181,71,0.07)'},beginAtZero:true,title:{display:true,text:'Carga (vol × RPE)',color:'#a8966f',font:{family:'JetBrains Mono',size:10}}},
+          y2:{position:'right',min:0,max:10,ticks:{color:'#34e3a5',font:{family:'JetBrains Mono',size:9.5}},grid:{drawOnChartArea:false},title:{display:true,text:'RPE prom.',color:'#34e3a5',font:{family:'JetBrains Mono',size:10}}}
+        }
+      }
+    });
+  } catch(err){ console.log('renderTaperLoadChart:', err); }
+}
+function renderTaperVwiChart(tf){
+  try {
+    var canvas = document.getElementById('taper-vwi-chart');
+    if(!canvas) return;
+    var daily = vwiDailyAvg(tf, 14);
+    var labels = daily.map(function(d){ return d.date.slice(5); });
+    var vals = daily.map(function(d){ return d.avg; });
+    var col = '#34e3a5';
+    if(taperVwiChart){ taperVwiChart.destroy(); taperVwiChart=null; }
+    var ctx = canvas.getContext('2d');
+    var grad = ctx.createLinearGradient(0,0,0,160);
+    grad.addColorStop(0, col+'55'); grad.addColorStop(1, col+'00');
+    taperVwiChart = new Chart(ctx, {
+      data: {
+        labels: labels,
+        datasets: [
+          { type:'line', label:'VWI prom.', data:vals, borderColor:col, backgroundColor:grad, fill:true, borderWidth:2.2, pointRadius:3, pointBackgroundColor:col, tension:.3, spanGaps:true },
+          { type:'line', label:'Meta 70', data:vals.map(function(){return 70;}), borderColor:'rgba(255,181,71,0.32)', borderWidth:1, borderDash:[5,4], pointRadius:0, fill:false }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{mode:'index',intersect:false},
+        plugins:{
+          legend:{labels:{color:'#a8966f',font:{family:'JetBrains Mono',size:10},boxWidth:12}},
+          tooltip:{backgroundColor:'#0e1a30',borderColor:'rgba(255,181,71,0.3)',borderWidth:1,titleFont:{family:'JetBrains Mono'},bodyFont:{family:'JetBrains Mono'}}
+        },
+        scales:{
+          x:{ticks:{color:'#a8966f',font:{family:'JetBrains Mono',size:9}},grid:{display:false}},
+          y:{min:0, max:100, ticks:{color:'#a8966f',font:{family:'JetBrains Mono',size:9.5},stepSize:25},grid:{color:'rgba(255,181,71,0.07)'}}
+        }
+      }
+    });
+  } catch(err){ console.log('renderTaperVwiChart:', err); }
 }
 
 // ============ ROSTER ============
