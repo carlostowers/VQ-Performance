@@ -337,7 +337,7 @@ table.data tbody tr:last-child td{border-bottom:none;}
 .skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:13px;grid-column:1/-1;}
 
 /* ===== MODAL / SLIDE-OVER / TOAST / LOADING ===== */
-.modal-overlay{position:fixed;inset:0;background:rgba(3,7,17,.85);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+.modal-overlay{position:fixed;inset:0;background:rgba(3,7,17,.85);z-index:600;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
 .modal-box{background:var(--bg2);border:1px solid var(--line-strong);border-radius:var(--r-lg);padding:1.8rem;width:100%;max-width:480px;box-shadow:var(--shadow);}
 .modal-title{font-family:var(--disp);font-size:20px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem;}
 .modal-subtitle{font-size:13px;color:var(--dim);margin-bottom:1.2rem;line-height:1.5;}
@@ -664,6 +664,7 @@ function isStaff() { return !!_staffSession; }
 function showLoginModal(show) {
   var m = document.getElementById('login-modal');
   if(m) m.style.display = show ? 'flex' : 'none';
+  if(show) showLoading(false); // defensivo: el login nunca debe quedar tapado por el loading
 }
 function setLogoutBtn(show) {
   try {
@@ -990,88 +991,31 @@ function checkURLPlayer() {
 }
 
 // ============ INIT ============
-// ============ DIAGNÓSTICO TEMPORAL ============
-function diagBox(){
-  var b = document.getElementById('diag-box');
-  if(b) return b;
-  b = document.createElement('div');
-  b.id = 'diag-box';
-  b.style.cssText = 'position:fixed;bottom:10px;left:10px;right:10px;max-width:600px;z-index:99999;background:#000;color:#0f0;font-family:monospace;font-size:12px;padding:12px;border:2px solid #0f0;border-radius:8px;max-height:50vh;overflow:auto;white-space:pre-wrap;box-shadow:0 0 20px rgba(0,255,0,.4)';
-  document.body.appendChild(b);
-  return b;
-}
-function diagLog(msg){
-  try {
-    var b = diagBox();
-    var line = document.createElement('div');
-    line.textContent = '[' + new Date().toISOString().slice(11,19) + '] ' + msg;
-    b.appendChild(line);
-    b.scrollTop = b.scrollHeight;
-    console.log('[DIAG]', msg);
-  } catch(e){}
-}
-function diagError(label, err){
-  try {
-    var b = diagBox();
-    var line = document.createElement('div');
-    line.style.color = '#ff5d6c';
-    line.textContent = '[ERROR] ' + label + ': ' + (err && err.message ? err.message : JSON.stringify(err));
-    b.appendChild(line);
-    b.scrollTop = b.scrollHeight;
-    console.error('[DIAG ERROR]', label, err);
-  } catch(e){}
-}
-function withTimeout(promise, ms, label){
-  return Promise.race([
-    promise,
-    new Promise(function(_, reject){
-      setTimeout(function(){ reject(new Error('TIMEOUT tras ' + ms + 'ms en: ' + label)); }, ms);
-    })
-  ]);
-}
 async function init() {
-  diagLog('init() arrancó');
-  if (isPlayerMode()) { diagLog('Modo jugador detectado'); await startApp(); return; }
+  if (isPlayerMode()) { await startApp(); return; }
   try {
-    diagLog('Pidiendo sesión a sb.auth.getSession()...');
-    var res = await withTimeout(sb.auth.getSession(), 8000, 'sb.auth.getSession()');
-    diagLog('getSession respondió. session=' + (res.data && res.data.session ? 'SÍ hay sesión' : 'no hay sesión'));
+    var res = await sb.auth.getSession();
     if(res.data && res.data.session) {
       _staffSession = res.data.session;
       setLogoutBtn(true);
-      diagLog('Sesión encontrada, llamando startApp()...');
       await startApp();
     } else {
-      diagLog('Sin sesión → mostrando modal de login');
       showLoginModal(true);
     }
-  } catch(e) { diagError('init() falló', e); showLoginModal(true); }
+  } catch(e) { showLoginModal(true); }
 }
 async function startApp() {
-  diagLog('startApp() arrancó');
   showLoading(true);
+  await loadTeamSettings();
   try {
-    diagLog('Cargando team settings...');
-    await withTimeout(loadTeamSettings(), 8000, 'loadTeamSettings()');
-    diagLog('Team settings OK');
-  } catch(e){ diagError('loadTeamSettings', e); }
-  try {
-    diagLog('Verificando seed de jugadores...');
-    await withTimeout(seedPlayersIfNeeded(), 8000, 'seedPlayersIfNeeded()');
-    diagLog('Seed OK');
-    diagLog('Aplicando parche de teléfonos...');
-    await withTimeout(patchPlayerPhones(), 8000, 'patchPlayerPhones()');
-    diagLog('Patch teléfonos OK');
-    diagLog('Cargando players + entries (loadAll)...');
-    await withTimeout(loadAll(), 12000, 'loadAll()');
-    diagLog('loadAll OK — players=' + DB.players.length + ' entries=' + DB.entries.length);
-  } catch(e) { diagError('carga de datos', e); toast('Error conectando a Supabase', true); console.error(e); }
+    await seedPlayersIfNeeded();
+    await patchPlayerPhones();
+    await loadAll();
+  } catch(e) { toast('Error conectando a Supabase', true); console.error(e); }
   showLoading(false);
-  diagLog('Render final del dashboard...');
   updateGameDayNav();
   updateTaperNav();
   if (!checkURLPlayer()) renderDashboard();
-  diagLog('startApp() TERMINÓ ✅');
 }
 function showLoading(v) {
   document.getElementById('loading').style.display = v ? 'flex' : 'none';
