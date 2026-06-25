@@ -990,31 +990,88 @@ function checkURLPlayer() {
 }
 
 // ============ INIT ============
-async function init() {
-  if (isPlayerMode()) { await startApp(); return; }
+// ============ DIAGNÓSTICO TEMPORAL ============
+function diagBox(){
+  var b = document.getElementById('diag-box');
+  if(b) return b;
+  b = document.createElement('div');
+  b.id = 'diag-box';
+  b.style.cssText = 'position:fixed;bottom:10px;left:10px;right:10px;max-width:600px;z-index:99999;background:#000;color:#0f0;font-family:monospace;font-size:12px;padding:12px;border:2px solid #0f0;border-radius:8px;max-height:50vh;overflow:auto;white-space:pre-wrap;box-shadow:0 0 20px rgba(0,255,0,.4)';
+  document.body.appendChild(b);
+  return b;
+}
+function diagLog(msg){
   try {
-    var res = await sb.auth.getSession();
+    var b = diagBox();
+    var line = document.createElement('div');
+    line.textContent = '[' + new Date().toISOString().slice(11,19) + '] ' + msg;
+    b.appendChild(line);
+    b.scrollTop = b.scrollHeight;
+    console.log('[DIAG]', msg);
+  } catch(e){}
+}
+function diagError(label, err){
+  try {
+    var b = diagBox();
+    var line = document.createElement('div');
+    line.style.color = '#ff5d6c';
+    line.textContent = '[ERROR] ' + label + ': ' + (err && err.message ? err.message : JSON.stringify(err));
+    b.appendChild(line);
+    b.scrollTop = b.scrollHeight;
+    console.error('[DIAG ERROR]', label, err);
+  } catch(e){}
+}
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise(function(_, reject){
+      setTimeout(function(){ reject(new Error('TIMEOUT tras ' + ms + 'ms en: ' + label)); }, ms);
+    })
+  ]);
+}
+async function init() {
+  diagLog('init() arrancó');
+  if (isPlayerMode()) { diagLog('Modo jugador detectado'); await startApp(); return; }
+  try {
+    diagLog('Pidiendo sesión a sb.auth.getSession()...');
+    var res = await withTimeout(sb.auth.getSession(), 8000, 'sb.auth.getSession()');
+    diagLog('getSession respondió. session=' + (res.data && res.data.session ? 'SÍ hay sesión' : 'no hay sesión'));
     if(res.data && res.data.session) {
       _staffSession = res.data.session;
       setLogoutBtn(true);
+      diagLog('Sesión encontrada, llamando startApp()...');
       await startApp();
     } else {
+      diagLog('Sin sesión → mostrando modal de login');
       showLoginModal(true);
     }
-  } catch(e) { showLoginModal(true); }
+  } catch(e) { diagError('init() falló', e); showLoginModal(true); }
 }
 async function startApp() {
+  diagLog('startApp() arrancó');
   showLoading(true);
-  await loadTeamSettings();
   try {
-    await seedPlayersIfNeeded();
-    await patchPlayerPhones();
-    await loadAll();
-  } catch(e) { toast('Error conectando a Supabase', true); console.error(e); }
+    diagLog('Cargando team settings...');
+    await withTimeout(loadTeamSettings(), 8000, 'loadTeamSettings()');
+    diagLog('Team settings OK');
+  } catch(e){ diagError('loadTeamSettings', e); }
+  try {
+    diagLog('Verificando seed de jugadores...');
+    await withTimeout(seedPlayersIfNeeded(), 8000, 'seedPlayersIfNeeded()');
+    diagLog('Seed OK');
+    diagLog('Aplicando parche de teléfonos...');
+    await withTimeout(patchPlayerPhones(), 8000, 'patchPlayerPhones()');
+    diagLog('Patch teléfonos OK');
+    diagLog('Cargando players + entries (loadAll)...');
+    await withTimeout(loadAll(), 12000, 'loadAll()');
+    diagLog('loadAll OK — players=' + DB.players.length + ' entries=' + DB.entries.length);
+  } catch(e) { diagError('carga de datos', e); toast('Error conectando a Supabase', true); console.error(e); }
   showLoading(false);
+  diagLog('Render final del dashboard...');
   updateGameDayNav();
   updateTaperNav();
   if (!checkURLPlayer()) renderDashboard();
+  diagLog('startApp() TERMINÓ ✅');
 }
 function showLoading(v) {
   document.getElementById('loading').style.display = v ? 'flex' : 'none';
