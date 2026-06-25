@@ -509,7 +509,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
 <div class="page" id="page-taper">
   <div class="eyebrow">Puesta a punto</div>
   <div class="page-title">Taper · Ventana Pre-Torneo</div>
-  <div class="page-sub">Carga, intensidad y readiness rumbo a Windy City y AAU Orlando</div>
+  <div class="page-sub">Carga, intensidad y readiness rumbo a AAU Orlando</div>
   <div id="taper-content"></div>
 </div>
 
@@ -662,7 +662,8 @@ const SEED_PLAYERS = [
 let _staffSession = null;
 function isStaff() { return !!_staffSession; }
 function showLoginModal(show) {
-  document.getElementById('login-modal').style.display = show ? 'flex' : 'none';
+  var m = document.getElementById('login-modal');
+  if(m) m.style.display = show ? 'flex' : 'none';
 }
 function setLogoutBtn(show) {
   try {
@@ -700,7 +701,8 @@ async function doStaffLogout() {
   document.getElementById('login-error').textContent = '';
 }
 document.addEventListener('keydown', function(e) {
-  if(e.key === 'Enter' && document.getElementById('login-modal').style.display !== 'none') doStaffLogin();
+  var m = document.getElementById('login-modal');
+  if(e.key === 'Enter' && m && m.style.display !== 'none') doStaffLogin();
 });
 
 let TEAM_SETTINGS = { '14M':{tournamentMode:false}, '15M':{tournamentMode:false}, '17M':{tournamentMode:false} };
@@ -1512,8 +1514,8 @@ function renderTournamentCountdown(slotId, teamFilter){
   } catch(e){ console.log('renderTournamentCountdown:', e); }
 }
 function smartDefaultTaperTeam(){
-  // Equipo con el torneo vigente más cercano. Si el torneo más próximo
-  // involucra a varios equipos, abre en ALL. Si no hay torneos, ALL.
+  // Equipo con el torneo vigente más cercano. Si el más próximo involucra
+  // a varios equipos, abre en ALL. Si no hay torneos, ALL.
   var up = upcomingTournaments().slice().sort(function(a,b){
     return (daysUntil(a.startDate)||0) - (daysUntil(b.startDate)||0);
   });
@@ -2546,38 +2548,23 @@ try { renderInstallBanners(); } catch(e){ console.log('install banners:', e); }
 </script>
 <!--
 =================================================================
-SQL PARA PEGAR EN SUPABASE SQL EDITOR
-Pasos:
-  1. Ir a Authentication > Users > "Add user" y crear tu cuenta
-  2. Pegar este script en SQL Editor y ejecutar
-  3. Verificar que el login funciona antes de cerrar sesión
+SQL PARA PEGAR EN SUPABASE SQL EDITOR (ya ejecutado el 24 jun 2026)
+Referencia — activa RLS en las 3 tablas con políticas por rol.
+Pasos: 1) crear usuario en Authentication>Users  2) correr este SQL
 =================================================================
-
--- ACTIVAR RLS EN LAS 3 TABLAS
 ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_settings ENABLE ROW LEVEL SECURITY;
 
--- PLAYERS
--- Anon puede leer (necesario para páginas ?player=id)
 CREATE POLICY "players_anon_select" ON players FOR SELECT TO anon USING (true);
--- Staff (authenticated) puede todo
 CREATE POLICY "players_staff_all" ON players FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- ENTRIES
--- Anon puede leer (jugadores ven su historial)
 CREATE POLICY "entries_anon_select" ON entries FOR SELECT TO anon USING (true);
--- Anon puede insertar (check-ins de jugadores)
 CREATE POLICY "entries_anon_insert" ON entries FOR INSERT TO anon WITH CHECK (true);
--- Staff puede todo (editar, borrar, leer todo)
 CREATE POLICY "entries_staff_all" ON entries FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- TEAM_SETTINGS
--- Anon puede leer (modo torneo visible para jugadores)
 CREATE POLICY "settings_anon_select" ON team_settings FOR SELECT TO anon USING (true);
--- Staff puede todo
 CREATE POLICY "settings_staff_all" ON team_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
-
 =================================================================
 -->
 </body>
