@@ -401,13 +401,14 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
     <div class="nav-links">
       <div class="nav-link active" onclick="showPage('dashboard')">Dashboard</div>
       <div class="nav-link" onclick="showPage('roster')">Roster</div>
-      <div class="nav-link" id="nav-gameday" style="display:none" onclick="showPage('gameday')">🏆 Game Day</div>
-      <div class="nav-link" id="nav-taper" style="display:none" onclick="showPage('taper')">🎯 Taper</div>
+      <div class="nav-link" id="nav-gameday" style="display:none" onclick="showPage('gameday')">Game Day</div>
+      <div class="nav-link" id="nav-taper" style="display:none" onclick="showPage('taper')">Taper</div>
       <div class="nav-link" onclick="showPage('records')">Historial</div>
       <div class="nav-link" onclick="showPage('import')">Datos</div>
     </div>
     <div class="nav-spacer"></div>
     <div class="nav-badge" id="alert-badge" style="display:none"></div>
+    <button id="logout-btn" onclick="doStaffLogout()" style="display:none;background:rgba(255,93,108,0.12);border:1px solid rgba(255,93,108,0.3);color:var(--coral);border-radius:var(--r-md);padding:6px 14px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;cursor:pointer">SALIR</button>
     <button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Menú">
       <span></span><span></span><span></span>
     </button>
@@ -416,10 +417,25 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
 <div class="mobile-menu" id="mobile-menu">
   <div class="nav-link active" id="mob-dashboard" onclick="showPage('dashboard');closeMobileMenu()">Dashboard</div>
   <div class="nav-link" id="mob-roster" onclick="showPage('roster');closeMobileMenu()">Roster</div>
-  <div class="nav-link" id="mob-gameday" style="display:none" onclick="showPage('gameday');closeMobileMenu()">🏆 Game Day</div>
-  <div class="nav-link" id="mob-taper" style="display:none" onclick="showPage('taper');closeMobileMenu()">🎯 Taper</div>
+  <div class="nav-link" id="mob-gameday" style="display:none" onclick="showPage('gameday');closeMobileMenu()">Game Day</div>
+  <div class="nav-link" id="mob-taper" style="display:none" onclick="showPage('taper');closeMobileMenu()">Taper</div>
   <div class="nav-link" id="mob-records" onclick="showPage('records');closeMobileMenu()">Historial</div>
   <div class="nav-link" id="mob-import" onclick="showPage('import');closeMobileMenu()">Datos</div>
+  <div id="mob-logout" style="display:none;padding:10px 0;border-top:1px solid var(--line);margin-top:6px"><button onclick="doStaffLogout();closeMobileMenu()" style="background:rgba(255,93,108,0.12);border:1px solid rgba(255,93,108,0.3);color:var(--coral);border-radius:var(--r-md);padding:8px 18px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;cursor:pointer;width:100%">CERRAR SESIÓN</button></div>
+</div>
+
+<div class="modal-overlay" id="login-modal" style="display:none">
+  <div class="modal-box" style="max-width:380px;text-align:center">
+    <img src="https://raw.githubusercontent.com/carlostowers/Vaqueros-app/main/vq-logo.png" alt="VQ" style="width:56px;height:56px;border-radius:22%;border:2px solid var(--gold);margin-bottom:1.1rem">
+    <div class="modal-title" style="font-size:17px">Acceso Staff</div>
+    <div class="modal-subtitle">Vaqueros Performance OS</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:1rem">
+      <input id="login-email" type="email" autocomplete="username" placeholder="Email" style="background:var(--bg3);border:1px solid var(--line-strong);border-radius:var(--r-md);padding:11px 14px;color:var(--text);font-size:14px;font-family:var(--body);outline:none;width:100%;box-sizing:border-box">
+      <input id="login-password" type="password" autocomplete="current-password" placeholder="Contraseña" style="background:var(--bg3);border:1px solid var(--line-strong);border-radius:var(--r-md);padding:11px 14px;color:var(--text);font-size:14px;font-family:var(--body);outline:none;width:100%;box-sizing:border-box">
+    </div>
+    <div id="login-error" style="color:var(--coral);font-size:12.5px;margin-top:8px;min-height:18px"></div>
+    <button id="login-btn" onclick="doStaffLogin()" style="width:100%;margin-top:10px;padding:13px;background:var(--gold);color:#030711;font-family:var(--disp);font-size:15px;font-weight:800;letter-spacing:.08em;border:none;border-radius:var(--r-md);cursor:pointer">ENTRAR</button>
+  </div>
 </div>
 
 <div class="loading-overlay" id="loading">
@@ -433,6 +449,8 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
   <div class="page-title">Panel del Staff</div>
   <div class="page-sub">Club Voleibol Vaqueros — telemetría de carga interna y bienestar</div>
   <div id="install-slot-dash"></div>
+  <div id="dash-countdown"></div>
+  <div id="dash-practice-toggle"></div>
 
   <div class="pulse-hero" id="pulse-hero"></div>
   <div id="dash-alerts"></div>
@@ -499,6 +517,7 @@ footer{background:rgba(3,7,17,.85);border-top:1px solid var(--line);padding:1.5r
 <div class="page" id="page-player">
   <button class="btn-ghost" id="back-btn" onclick="goBack()" style="margin-bottom:1.2rem">← Volver</button>
   <div id="install-slot-player"></div>
+  <div id="player-countdown"></div>
   <div id="player-content"></div>
 </div>
 
@@ -639,18 +658,50 @@ const SEED_PLAYERS = [
   {id:"p-diego-armando",name:"Diego Armando",team:"14M",number:"99",position:"RH"}
 ];
 
-const STAFF_PASSWORD = ' ';
-let staffUnlocked = false;
-function ensureStaffAccess() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('player')) return true;
-  if (staffUnlocked) return true;
-  const input = prompt('Contraseña del staff:');
-  if (input === null) return false;
-  if (input === STAFF_PASSWORD) { staffUnlocked = true; return true; }
-  alert('Contraseña incorrecta.');
-  return false;
+// ============ AUTH ============
+let _staffSession = null;
+function isStaff() { return !!_staffSession; }
+function showLoginModal(show) {
+  document.getElementById('login-modal').style.display = show ? 'flex' : 'none';
 }
+function setLogoutBtn(show) {
+  try {
+    var btn = document.getElementById('logout-btn');
+    var mob = document.getElementById('mob-logout');
+    if(btn) btn.style.display = show ? 'inline-block' : 'none';
+    if(mob) mob.style.display = show ? 'block' : 'none';
+  } catch(e) {}
+}
+async function doStaffLogin() {
+  var btn = document.getElementById('login-btn');
+  var err = document.getElementById('login-error');
+  var email = (document.getElementById('login-email').value||'').trim();
+  var pass  = document.getElementById('login-password').value||'';
+  if(!email || !pass) { err.textContent = 'Ingresa email y contraseña.'; return; }
+  btn.textContent = 'Entrando…'; btn.disabled = true; err.textContent = '';
+  try {
+    var res = await sb.auth.signInWithPassword({ email: email, password: pass });
+    if(res.error) { err.textContent = 'Credenciales incorrectas.'; btn.textContent = 'ENTRAR'; btn.disabled = false; return; }
+    _staffSession = res.data.session;
+    showLoginModal(false);
+    setLogoutBtn(true);
+    document.getElementById('login-password').value = '';
+    btn.textContent = 'ENTRAR'; btn.disabled = false;
+    await startApp();
+  } catch(e) { err.textContent = 'Error de conexión.'; btn.textContent = 'ENTRAR'; btn.disabled = false; }
+}
+async function doStaffLogout() {
+  try { await sb.auth.signOut(); } catch(e) {}
+  _staffSession = null;
+  setLogoutBtn(false);
+  showLoginModal(true);
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+}
+document.addEventListener('keydown', function(e) {
+  if(e.key === 'Enter' && document.getElementById('login-modal').style.display !== 'none') doStaffLogin();
+});
 
 let TEAM_SETTINGS = { '14M':{tournamentMode:false}, '15M':{tournamentMode:false}, '17M':{tournamentMode:false} };
 async function loadTeamSettings() {
@@ -681,7 +732,7 @@ let radarChart = null;
 let _gamedayTeam = null;
 let taperLoadChart = null;
 let taperVwiChart = null;
-let currentTaperFilter = 'ALL';
+let currentTaperFilter = null;
 
 // Metrics cache (Fase 2)
 let _dbVersion = 0;
@@ -690,9 +741,15 @@ let _metricsCache = { version:-1, byPlayer:{} };
 const TEAM_COLOR = {'17M':'#FFB547','15M':'#34e3a5','14M':'#9d7bff'};
 const TEAM_ORDER = ['17M','15M','14M'];
 const TOURNAMENTS = [
-  { id:'windy', name:'Windy City', sub:'Chicago, IL', startDate:'2026-06-18', endDate:'2026-06-22', teams:['17M'], color:'#FFB547' },
   { id:'orlando', name:'AAU Orlando', sub:'Orlando, FL', startDate:'2026-07-05', endDate:'2026-07-11', teams:['17M','15M','14M'], color:'#9d7bff' }
 ];
+// Solo torneos vigentes (que aún no terminaron) — defensivo para el countdown.
+function upcomingTournaments(){
+  return TOURNAMENTS.filter(function(t){
+    var d = daysUntil(t.endDate);
+    return d != null && d >= 0;
+  });
+}
 
 // ============ DATA ============
 async function seedPlayersIfNeeded() {
@@ -932,7 +989,19 @@ function checkURLPlayer() {
 
 // ============ INIT ============
 async function init() {
-  if (!ensureStaffAccess()) return;
+  if (isPlayerMode()) { await startApp(); return; }
+  try {
+    var res = await sb.auth.getSession();
+    if(res.data && res.data.session) {
+      _staffSession = res.data.session;
+      setLogoutBtn(true);
+      await startApp();
+    } else {
+      showLoginModal(true);
+    }
+  } catch(e) { showLoginModal(true); }
+}
+async function startApp() {
   showLoading(true);
   await loadTeamSettings();
   try {
@@ -959,6 +1028,9 @@ function showLoading(v) {
 function renderDashboard(teamFilter) {
   if(teamFilter) currentFilter.dash=teamFilter;
   const tf=currentFilter.dash;
+
+  // --- Countdown de torneos (respeta filtro de equipo del dashboard)
+  try { renderTournamentCountdown('dash-countdown', tf); } catch(e){ console.log('dash countdown:', e); }
 
   // --- Pulso del equipo (hero gauges)
   document.getElementById('pulse-hero').innerHTML = TEAM_ORDER.map(team=>{
@@ -1007,6 +1079,7 @@ function renderDashboard(teamFilter) {
       ).join('')+'</div>';
   }).join('');
   document.getElementById('dash-alerts').innerHTML = alertBlocks;
+  try { renderPracticeToggle(); } catch(e){ console.log('practice toggle:', e); }
   try { renderReminder(tf); } catch(e){ console.log('reminder:', e); }
 
   // --- ACWR board (usa cache de métricas)
@@ -1392,13 +1465,71 @@ function updateTaperNav(){
     if(mob) mob.style.display = any ? 'flex' : 'none';
   } catch(e){ console.log('updateTaperNav:', e); }
 }
+function tournamentCountdownHTML(teamFilter){
+  // Widget compacto de cuenta regresiva. teamFilter opcional ('ALL' o equipo).
+  var torneos = upcomingTournaments().filter(function(t){
+    if(!teamFilter || teamFilter==='ALL') return true;
+    return t.teams.indexOf(teamFilter) !== -1;
+  }).slice().sort(function(a,b){
+    return (daysUntil(a.startDate)||0) - (daysUntil(b.startDate)||0);
+  });
+  if(!torneos.length) return '';
+  var cards = torneos.map(function(t){
+    var days = daysUntil(t.startDate);
+    var endDays = daysUntil(t.endDate);
+    var label, col;
+    if(endDays!=null && endDays<0){ label='Finalizado'; col='#6b5d3e'; }
+    else if(days!=null && days<=0){ label='¡En curso!'; col='#34e3a5'; }
+    else if(days!=null && days<=7){ label='Ventana crítica'; col='#FF8C00'; }
+    else if(days!=null && days<=21){ label='Taper activo'; col=t.color; }
+    else { label='Próximo'; col='#a8966f'; }
+    var daysShown = (days!=null) ? Math.max(0,days) : '—';
+    var teamPills = t.teams.map(function(team){
+      return '<span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;background:'+hexA(TEAM_COLOR[team],0.16)+';color:'+TEAM_COLOR[team]+'">'+team+'</span>';
+    }).join(' ');
+    return '<div style="flex:1;min-width:200px;display:flex;align-items:center;gap:14px;padding:14px 16px;background:var(--bg2);border:1px solid var(--line);border-left:3px solid '+t.color+';border-radius:var(--r-md)">'+
+      '<div style="text-align:center;min-width:54px">'+
+        '<div style="font-family:var(--mono);font-size:30px;font-weight:700;line-height:1;color:'+t.color+'">'+daysShown+'</div>'+
+        '<div style="font-family:var(--mono);font-size:8.5px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:2px">días</div>'+
+      '</div>'+
+      '<div style="flex:1">'+
+        '<div style="font-weight:700;font-size:14px;font-family:var(--disp);letter-spacing:.02em">'+t.name+'</div>'+
+        '<div style="font-size:11px;color:var(--dim);margin:2px 0 6px">'+t.sub+' · '+formatTournamentRange(t.startDate,t.endDate)+'</div>'+
+        '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">'+teamPills+'<span style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:'+col+';margin-left:4px">'+label+'</span></div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  return '<div style="margin-bottom:1.4rem">'+
+    '<div style="font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.16em;text-transform:uppercase;margin-bottom:9px">⏱ Próximo'+(torneos.length>1?'s':'')+' torneo'+(torneos.length>1?'s':'')+'</div>'+
+    '<div style="display:flex;gap:11px;flex-wrap:wrap">'+cards+'</div>'+
+  '</div>';
+}
+function renderTournamentCountdown(slotId, teamFilter){
+  try {
+    var slot = document.getElementById(slotId);
+    if(!slot) return;
+    slot.innerHTML = tournamentCountdownHTML(teamFilter);
+  } catch(e){ console.log('renderTournamentCountdown:', e); }
+}
+function smartDefaultTaperTeam(){
+  // Equipo con el torneo vigente más cercano. Si el torneo más próximo
+  // involucra a varios equipos, abre en ALL. Si no hay torneos, ALL.
+  var up = upcomingTournaments().slice().sort(function(a,b){
+    return (daysUntil(a.startDate)||0) - (daysUntil(b.startDate)||0);
+  });
+  if(!up.length) return 'ALL';
+  var nearest = up[0];
+  if(nearest.teams && nearest.teams.length === 1) return nearest.teams[0];
+  return 'ALL';
+}
 function renderTaper(teamFilter){
   try {
     if(teamFilter) currentTaperFilter = teamFilter;
+    if(!currentTaperFilter) currentTaperFilter = smartDefaultTaperTeam();
     var tf = currentTaperFilter;
 
     // --- Countdowns
-    var visibleTorneos = TOURNAMENTS.filter(function(t){
+    var visibleTorneos = upcomingTournaments().filter(function(t){
       if(tf==='ALL') return true;
       return t.teams.indexOf(tf) !== -1;
     });
@@ -1693,6 +1824,36 @@ function copyLink(pid, event){
 
 // ============ RECORDATORIO CHECK-IN ============
 var reminderExpanded = false;
+// Toggle "Practicamos hoy" — persistido por fecha en localStorage.
+// Si el día está marcado como sin práctica, el recordatorio no aparece.
+function noPracticeKey(){ return 'vq_nopractice_' + today(); }
+function isPracticeDay(){
+  try { return localStorage.getItem(noPracticeKey()) !== '1'; }
+  catch(e){ return true; }
+}
+function togglePracticeDay(){
+  try {
+    if(isPracticeDay()) localStorage.setItem(noPracticeKey(), '1');
+    else localStorage.removeItem(noPracticeKey());
+  } catch(e){}
+  renderPracticeToggle();
+  renderReminder();
+}
+function renderPracticeToggle(){
+  var slot = document.getElementById('dash-practice-toggle');
+  if(!slot || !isStaff()) { if(slot) slot.innerHTML=''; return; }
+  var on = isPracticeDay();
+  var col = on ? 'var(--mint)' : 'var(--dim)';
+  var bg  = on ? 'var(--mint-soft)' : 'rgba(255,255,255,.05)';
+  var icon = on ? '✅' : '🚫';
+  var txt  = on ? 'Practicamos hoy' : 'Hoy no hay práctica';
+  slot.innerHTML = '<div style="margin-bottom:1.2rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'+
+    '<button onclick="togglePracticeDay()" style="display:inline-flex;align-items:center;gap:9px;background:'+bg+';border:1px solid '+hexA(on?'#34e3a5':'#a8966f',0.35)+';color:'+col+';border-radius:999px;padding:9px 18px;font-family:var(--disp);font-size:13px;font-weight:700;letter-spacing:.04em;cursor:pointer">'+
+      '<span style="font-size:15px">'+icon+'</span>'+txt+
+    '</button>'+
+    '<span style="font-family:var(--mono);font-size:11px;color:var(--faint)">'+(on?'El recordatorio de check-in está activo':'El recordatorio está oculto para hoy')+'</span>'+
+  '</div>';
+}
 function playersWithoutCheckinToday(teamFilter){
   var t = today();
   var players = DB.players;
@@ -1704,7 +1865,8 @@ function playersWithoutCheckinToday(teamFilter){
 }
 function renderReminder(teamFilter){
   var slot = document.getElementById('dash-reminder');
-  if(!slot || isPlayerMode()) return;
+  if(!slot || !isStaff()) return;
+  if(!isPracticeDay()){ slot.innerHTML = ''; return; }
   var tf = teamFilter || currentFilter.dash;
   var missing = playersWithoutCheckinToday(tf);
   if(!missing.length){
@@ -1820,6 +1982,7 @@ function renderPlayerPage(pid) {
   currentPlayerId=pid;
   const p=DB.players.find(x=>x.id===pid);
   if(!p){document.getElementById('player-content').innerHTML=emptyState('🔍','Jugador no encontrado','Verifica que el link sea correcto.');return;}
+  try { renderTournamentCountdown('player-countdown', p.team); } catch(e){ console.log('player countdown:', e); }
   const entries=playerEntries(pid);
   const last=entries[0];
   const isTournament=TEAM_SETTINGS[p.team]&&TEAM_SETTINGS[p.team].tournamentMode;
@@ -1836,7 +1999,7 @@ function renderPlayerPage(pid) {
     '<td class="tnum">'+(e.mood??'—')+' / '+(e.sleepQuality??'—')+' / '+(e.soreness??'—')+' / '+(e.stress??'—')+'</td>'+
     '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--dim)">'+htmlEscape(e.notes||'')+'</td>'+
     '<td>'+(e.playerNote?'<button class="note-btn" data-name="'+htmlEscape(p.name)+'" data-date="'+e.date+'" data-note="'+htmlEscape(e.playerNote)+'" style="background:var(--azure-soft);border:1px solid rgba(255,181,71,.35);color:var(--azure);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer" title="Ver mensaje">💬</button>':'<span style="color:var(--faint)">—</span>')+'</td>'+
-    (isPlayerMode()?'<td></td>':'<td style="white-space:nowrap"><button onclick="editEntryDate(\''+e.id+'\',\''+e.date+'\')" class="edit-date-btn" title="Corregir fecha" style="margin-right:5px">✏️</button><button onclick="deleteEntry(\''+e.id+'\')" style="background:var(--coral-soft);border:1px solid rgba(255,93,108,.35);color:var(--coral);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer" title="Eliminar">🗑</button></td>')+
+    (isStaff()?'<td style="white-space:nowrap"><button onclick="editEntryDate(\''+e.id+'\',\''+e.date+'\')" class="edit-date-btn" title="Corregir fecha" style="margin-right:5px">✏️</button><button onclick="deleteEntry(\''+e.id+'\')" style="background:var(--coral-soft);border:1px solid rgba(255,93,108,.35);color:var(--coral);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer" title="Eliminar">🗑</button></td>':'<td></td>')+
     '</tr>'
   ).join('');
 
@@ -1850,18 +2013,18 @@ function renderPlayerPage(pid) {
         '<span class="badge '+bdgClass(p.team)+'" style="font-size:12px;padding:5px 13px">'+p.team+'</span>'+
         '<span class="badge b-pos" style="font-size:12px;padding:5px 13px">#'+p.number+' · '+htmlEscape(p.position)+'</span>'+
         (score!=null?'<span class="badge" style="font-size:12px;padding:5px 13px;background:'+(score>=8?'var(--mint-soft)':score>=5?'var(--amber-soft)':'var(--coral-soft)')+';color:'+(score>=8?'var(--mint)':score>=5?'var(--amber)':'var(--coral)')+'">LISTO '+score+'/10</span>':'')+
-        (r!=null&&!isPlayerMode()?'<span class="badge '+z.cls+'" style="font-size:12px;padding:5px 13px">ACWR '+r.toFixed(2)+'</span>':'')+
+        (r!=null&&isStaff()?'<span class="badge '+z.cls+'" style="font-size:12px;padding:5px 13px">ACWR '+r.toFixed(2)+'</span>':'')+
         (last?'<span class="badge" style="font-size:12px;padding:5px 13px;background:rgba(255,255,255,.06);color:var(--dim)">Últ: '+last.date+'</span>':'')+
       '</div></div></div>'+
     (coachMsg?'<div class="coach-banner"><strong>Mensaje de tu coach</strong>'+htmlEscape(coachMsg)+'</div>':'')+
     (isTournament?'<div class="gold-banner">🏆 Modo Torneo activado — Check-in Game Day</div>':'')+
     formHTML+
-    (isPlayerMode()?'':
+    (isStaff()?
       '<div class="chart-row">'+
         '<div class="panel"><div class="panel-title"><span class="dot"></span>Radar de bienestar</div><div class="chart-wrap" style="height:250px"><canvas id="radar-chart"></canvas></div></div>'+
         '<div class="panel"><div class="panel-title"><span class="dot"></span>Carga · 8 semanas</div><div class="heatmap" id="hm-grid"></div>'+
         '<div class="hm-legend"><span>Menos</span><i style="background:rgba(255,255,255,.05)"></i><i style="background:rgba(255,181,71,.22)"></i><i style="background:rgba(255,181,71,.45)"></i><i style="background:rgba(255,181,71,.7)"></i><i style="background:#FFB547"></i><span>Más</span></div></div>'+
-      '</div>')+
+      '</div>':'')+
     '<div class="form-section">'+
       '<div class="form-section-title">Últimas entradas</div>'+
       (entries.length===0?emptyState('📋','Sin check-ins','Este jugador todavía no ha registrado ningún check-in diario.'):
@@ -1876,7 +2039,7 @@ function renderPlayerPage(pid) {
 
   initCheckinForm(pid, isTournament);
   renderInstallBanners();
-  if(!isPlayerMode()){ renderRadar(entries); renderHeatmap(pid); }
+  if(isStaff()){ renderRadar(entries); renderHeatmap(pid); }
   loadPlayerEntriesForChart(pid).then(data=>{ if(currentPlayerId===pid) buildPlayerLoadChart(data); });
 }
 
@@ -2160,7 +2323,7 @@ async function deleteEntry(entryId){
 }
 
 async function editEntryDate(entryId, currentDate){
-  if(isPlayerMode()) return;
+  if(!isStaff()) return;
   var nueva=prompt('Corregir fecha del check-in (AAAA-MM-DD):', currentDate||today());
   if(!nueva) return;
   nueva=nueva.trim();
@@ -2268,7 +2431,7 @@ function renderRecords(){
       '<td class="tnum">'+(e.stress??'—')+'</td>'+
       '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;color:var(--dim)">'+htmlEscape(e.notes||'')+'</td>'+
       '<td>'+(e.playerNote?'<button class="note-btn" data-name="'+htmlEscape(p.name||'')+'" data-date="'+e.date+'" data-note="'+htmlEscape(e.playerNote)+'" style="background:var(--azure-soft);border:1px solid rgba(255,181,71,.35);color:var(--azure);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">💬</button>':'<span style="color:var(--faint)">—</span>')+'</td>'+
-      '<td style="white-space:nowrap">'+(isPlayerMode()?'':'<button onclick="editEntryDate(\''+e.id+'\',\''+e.date+'\')" class="edit-date-btn" title="Corregir fecha" style="margin-right:5px">✏️</button><button onclick="deleteEntry(\''+e.id+'\')" style="background:var(--coral-soft);border:1px solid rgba(255,93,108,.35);color:var(--coral);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">🗑</button>')+'</td>'+
+      '<td style="white-space:nowrap">'+(isStaff()?'<button onclick="editEntryDate(\''+e.id+'\',\''+e.date+'\')" class="edit-date-btn" title="Corregir fecha" style="margin-right:5px">✏️</button><button onclick="deleteEntry(\''+e.id+'\')" style="background:var(--coral-soft);border:1px solid rgba(255,93,108,.35);color:var(--coral);border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">🗑</button>':'')+'</td>'+
     '</tr>';
   }).join('');
   container.innerHTML='<div class="table-wrap"><table class="data">'+
@@ -2362,7 +2525,7 @@ function renderInstallBanners(){
   var html = installBannerHTML();
   var d = document.getElementById('install-slot-dash');
   var p = document.getElementById('install-slot-player');
-  if(d) d.innerHTML = isPlayerMode() ? '' : html;
+  if(d) d.innerHTML = isStaff() ? html : '';
   if(p) p.innerHTML = html;
 }
 async function doInstall(){
@@ -2381,5 +2544,41 @@ function dismissInstall(){
 init();
 try { renderInstallBanners(); } catch(e){ console.log('install banners:', e); }
 </script>
+<!--
+=================================================================
+SQL PARA PEGAR EN SUPABASE SQL EDITOR
+Pasos:
+  1. Ir a Authentication > Users > "Add user" y crear tu cuenta
+  2. Pegar este script en SQL Editor y ejecutar
+  3. Verificar que el login funciona antes de cerrar sesión
+=================================================================
+
+-- ACTIVAR RLS EN LAS 3 TABLAS
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+ALTER TABLE entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_settings ENABLE ROW LEVEL SECURITY;
+
+-- PLAYERS
+-- Anon puede leer (necesario para páginas ?player=id)
+CREATE POLICY "players_anon_select" ON players FOR SELECT TO anon USING (true);
+-- Staff (authenticated) puede todo
+CREATE POLICY "players_staff_all" ON players FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- ENTRIES
+-- Anon puede leer (jugadores ven su historial)
+CREATE POLICY "entries_anon_select" ON entries FOR SELECT TO anon USING (true);
+-- Anon puede insertar (check-ins de jugadores)
+CREATE POLICY "entries_anon_insert" ON entries FOR INSERT TO anon WITH CHECK (true);
+-- Staff puede todo (editar, borrar, leer todo)
+CREATE POLICY "entries_staff_all" ON entries FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- TEAM_SETTINGS
+-- Anon puede leer (modo torneo visible para jugadores)
+CREATE POLICY "settings_anon_select" ON team_settings FOR SELECT TO anon USING (true);
+-- Staff puede todo
+CREATE POLICY "settings_staff_all" ON team_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+=================================================================
+-->
 </body>
 </html>
